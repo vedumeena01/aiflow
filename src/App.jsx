@@ -8,6 +8,7 @@ import TestRunModal from './components/TestRunModal';
 import ApiSettingsModal from './components/ApiSettingsModal';
 import ChatPlayground from './components/ChatPlayground';
 import CodeExportModal from './components/CodeExportModal';
+import HitlApprovalModal from './components/HitlApprovalModal';
 import { PREBUILT_TEMPLATES } from './data/templates';
 import { NODE_DEFINITIONS } from './data/nodeDefinitions';
 import { validateGraph, validateWorkflowSchema } from './utils/graphValidation';
@@ -154,6 +155,47 @@ export default function App() {
   const [totalTokens, setTotalTokens] = useState('0');
   const [totalLatency, setTotalLatency] = useState('0ms');
 
+  // HITL & Breakpoint States
+  const [hitlModalState, setHitlModalState] = useState(null);
+  const hitlResolverRef = useRef(null);
+
+  const requestHitlApproval = useCallback((node, inputData, isBreakpoint = false) => {
+    return new Promise((resolve) => {
+      hitlResolverRef.current = resolve;
+      setHitlModalState({
+        isOpen: true,
+        node,
+        inputData,
+        isBreakpoint
+      });
+    });
+  }, []);
+
+  const handleHitlApprove = useCallback((modifiedPayload) => {
+    if (hitlResolverRef.current) {
+      hitlResolverRef.current({ approved: true, payload: modifiedPayload });
+      hitlResolverRef.current = null;
+    }
+    setHitlModalState(null);
+  }, []);
+
+  const handleHitlReject = useCallback((reason) => {
+    if (hitlResolverRef.current) {
+      hitlResolverRef.current({ approved: false, reason });
+      hitlResolverRef.current = null;
+    }
+    setHitlModalState(null);
+  }, []);
+
+  const handleToggleBreakpoint = useCallback((nodeId) => {
+    setNodes(prev => prev.map(n => {
+      if (n.id === nodeId) {
+        return { ...n, breakpoint: !n.breakpoint };
+      }
+      return n;
+    }));
+  }, []);
+
   const simulationAbortRef = useRef(false);
 
   // Quota-Safe LocalStorage Sync
@@ -164,7 +206,8 @@ export default function App() {
       title: n.title,
       x: n.x,
       y: n.y,
-      config: n.config
+      config: n.config,
+      breakpoint: n.breakpoint
     }));
 
     const cleanConnections = connections.map(c => ({
@@ -472,6 +515,44 @@ export default function App() {
       let stepOutput = null;
       let nodeTokens = 0;
 
+      // --- INTERACTIVE BREAKPOINT INTERCEPTION ---
+      if (currentNode.breakpoint) {
+        addLog(`⏸️ Breakpoint encountered at [${currentNode.title || currentNode.type}]. Pausing execution for inspection...`, currentNode.title, 'running');
+        setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'paused' }));
+        const decision = await requestHitlApproval(currentNode, currentInput, true);
+        if (!decision.approved) {
+          addLog(`🛑 Execution halted at breakpoint by operator (${decision.reason || 'User cancelled'}).`, currentNode.title, 'error');
+          setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'error' }));
+          simulationAbortRef.current = true;
+          break;
+        }
+        currentInput = decision.payload;
+        setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'running' }));
+        addLog(`▶️ Breakpoint resumed by operator. Continuing pipeline...`, currentNode.title, 'success', currentInput);
+      }
+
+      // --- HUMAN-IN-THE-LOOP REVIEW GATE ---
+      if (currentNode.type === 'hitl_gate') {
+        addLog(`🛡️ Human-in-the-Loop Gate activated: Pausing pipeline for operator authorization...`, currentNode.title, 'running');
+        setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'paused' }));
+        const decision = await requestHitlApproval(currentNode, currentInput, false);
+        if (!decision.approved) {
+          addLog(`⛔ Action REJECTED by Human Operator: "${decision.reason || 'Security gate rejected'}"`, currentNode.title, 'error');
+          setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'error' }));
+          stepOutput = { approved: false, rejectedBy: 'Human Operator', reason: decision.reason, input: currentInput };
+          nodeOutputs.set(currentNode.id, stepOutput);
+          simulationAbortRef.current = true;
+          break;
+        } else {
+          addLog(`✅ Action APPROVED by Human Operator. Authorized payload forwarded.`, currentNode.title, 'success', decision.payload);
+          stepOutput = decision.payload;
+          nodeOutputs.set(currentNode.id, stepOutput);
+          finalPayload = stepOutput;
+          setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'success' }));
+          continue;
+        }
+      }
+
       // --- LIVE MODE EXECUTION ---
       if (executionMode === 'live') {
         if (nodeDef?.category === 'trigger') {
@@ -657,6 +738,7 @@ export default function App() {
           onAddNodeAtPosition={handleAddNodeAtPosition}
           onDeleteNode={handleDeleteNode}
           onDuplicateNode={handleDuplicateNode}
+          onToggleBreakpoint={handleToggleBreakpoint}
           onCreateConnection={handleCreateConnection}
           onDeleteConnection={handleDeleteConnection}
         />
@@ -666,6 +748,7 @@ export default function App() {
             selectedNode={selectedNode}
             onUpdateConfig={handleUpdateNodeConfig}
             onUpdateTitle={handleUpdateNodeTitle}
+            onToggleBreakpoint={handleToggleBreakpoint}
             onClose={() => setSelectedNodeId(null)}
             onDeleteNode={handleDeleteNode}
           />
@@ -717,6 +800,16 @@ export default function App() {
         workflowName={workflowName}
         nodes={nodes}
         connections={connections}
+      />
+
+      {/* Human-in-the-Loop & Breakpoint Approval Modal */}
+      <HitlApprovalModal 
+        isOpen={!!hitlModalState?.isOpen}
+        node={hitlModalState?.node}
+        inputData={hitlModalState?.inputData}
+        isBreakpoint={hitlModalState?.isBreakpoint}
+        onApprove={handleHitlApprove}
+        onReject={handleHitlReject}
       />
     </div>
   );

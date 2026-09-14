@@ -26,7 +26,9 @@ import {
   AlertOctagon,
   Repeat,
   Target,
-  Radio
+  Radio,
+  ShieldCheck,
+  CircleDot
 } from 'lucide-react';
 import { NODE_CATEGORIES, NODE_DEFINITIONS } from '../data/nodeDefinitions';
 
@@ -51,7 +53,8 @@ const ICON_MAP = {
   Database,
   Repeat,
   Target,
-  Radio
+  Radio,
+  ShieldCheck
 };
 
 export default function NodeCard({
@@ -62,6 +65,7 @@ export default function NodeCard({
   onSelect,
   onDelete,
   onDuplicate,
+  onToggleBreakpoint,
   onStartConnection,
   onPortMouseUp
 }) {
@@ -105,16 +109,22 @@ export default function NodeCard({
 
   return (
     <div 
-      className={`node-card ${isSelected ? 'is-selected' : ''} ${executionStatus === 'running' ? 'is-running' : ''} ${executionStatus === 'success' ? 'is-success' : ''}`}
+      className={`node-card ${isSelected ? 'is-selected' : ''} ${executionStatus === 'running' ? 'is-running' : ''} ${executionStatus === 'success' ? 'is-success' : ''} ${executionStatus === 'paused' ? 'is-paused' : ''} ${node.breakpoint ? 'has-breakpoint' : ''}`}
       style={{
         left: `${node.x}px`,
         top: `${node.y}px`,
         borderColor: isCycleNode 
           ? '#ef4444' 
+          : executionStatus === 'paused'
+          ? '#f59e0b'
           : isSelected 
           ? category.borderHover 
           : category.borderColor,
-        boxShadow: isCycleNode ? '0 0 16px rgba(239, 68, 68, 0.4)' : undefined
+        boxShadow: isCycleNode 
+          ? '0 0 16px rgba(239, 68, 68, 0.4)' 
+          : executionStatus === 'paused'
+          ? '0 0 20px rgba(245, 158, 11, 0.6)'
+          : undefined
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -124,8 +134,12 @@ export default function NodeCard({
       <div 
         className="node-header"
         style={{ 
-          background: isCycleNode ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.05) 100%)' : category.bgGradient,
-          borderBottom: `1px solid ${isCycleNode ? '#ef4444' : category.borderColor}`
+          background: isCycleNode 
+            ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.05) 100%)' 
+            : executionStatus === 'paused'
+            ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.3) 0%, rgba(245, 158, 11, 0.1) 100%)'
+            : category.bgGradient,
+          borderBottom: `1px solid ${isCycleNode ? '#ef4444' : executionStatus === 'paused' ? '#f59e0b' : category.borderColor}`
         }}
       >
         <div className="node-title-wrap">
@@ -145,6 +159,18 @@ export default function NodeCard({
         </div>
 
         <div className="node-actions" onClick={e => e.stopPropagation()}>
+          <button 
+            className={`node-mini-btn ${node.breakpoint ? 'btn-breakpoint-active' : ''}`}
+            title={node.breakpoint ? 'Remove Breakpoint' : 'Toggle Breakpoint (Pause execution at this step)'}
+            onClick={() => onToggleBreakpoint && onToggleBreakpoint(node.id)}
+            style={{
+              color: node.breakpoint ? '#ef4444' : undefined,
+              background: node.breakpoint ? 'rgba(239, 68, 68, 0.2)' : undefined,
+              borderColor: node.breakpoint ? '#ef4444' : undefined
+            }}
+          >
+            <CircleDot size={13} />
+          </button>
           <button 
             className="node-mini-btn" 
             title="Inspect & Edit Parameters"
@@ -174,13 +200,26 @@ export default function NodeCard({
           <span 
             className="node-badge"
             style={{ 
-              background: isCycleNode ? 'rgba(239, 68, 68, 0.2)' : category.glowColor, 
-              color: isCycleNode ? '#f87171' : category.color,
-              border: `1px solid ${isCycleNode ? '#ef4444' : category.borderColor}`
+              background: isCycleNode ? 'rgba(239, 68, 68, 0.2)' : executionStatus === 'paused' ? 'rgba(245, 158, 11, 0.3)' : category.glowColor, 
+              color: isCycleNode ? '#f87171' : executionStatus === 'paused' ? '#fbbf24' : category.color,
+              border: `1px solid ${isCycleNode ? '#ef4444' : executionStatus === 'paused' ? '#f59e0b' : category.borderColor}`
             }}
           >
-            {isCycleNode ? 'CYCLE LOOP' : category.badge}
+            {isCycleNode ? 'CYCLE LOOP' : executionStatus === 'paused' ? 'PAUSED' : category.badge}
           </span>
+          {node.breakpoint && (
+            <span 
+              className="node-pill-tag"
+              style={{
+                background: 'rgba(239, 68, 68, 0.2)',
+                color: '#f87171',
+                border: '1px solid rgba(239, 68, 68, 0.5)',
+                fontWeight: 700
+              }}
+            >
+              ● BREAKPOINT
+            </span>
+          )}
           {subTag && (
             <span className="node-pill-tag">
               {subTag}

@@ -244,6 +244,22 @@ export const NODE_DEFINITIONS = [
       threshold: '0.85'
     }
   },
+  {
+    type: 'hitl_gate',
+    category: 'logic',
+    name: 'Human Approval Gate (HITL)',
+    description: 'Pauses pipeline execution for human operator review, payload edits, or action sign-off',
+    icon: 'ShieldCheck',
+    inputs: ['inbound_action'],
+    outputs: ['approved', 'rejected'],
+    defaultConfig: {
+      actionTitle: 'External Action Authorization',
+      riskLevel: 'HIGH',
+      requireApproval: true,
+      timeoutMinutes: 15,
+      notificationChannel: '#ops-approvals'
+    }
+  },
 
   // --- ACTIONS ---
   {

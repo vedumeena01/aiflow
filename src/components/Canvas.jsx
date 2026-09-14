@@ -22,6 +22,7 @@ export default function Canvas({
   onAddNodeAtPosition,
   onDeleteNode,
   onDuplicateNode,
+  onToggleBreakpoint,
   onCreateConnection,
   onDeleteConnection
 }) {
@@ -352,6 +353,7 @@ export default function Canvas({
               onSelect={onSelectNode}
               onDelete={onDeleteNode}
               onDuplicate={onDuplicateNode}
+              onToggleBreakpoint={onToggleBreakpoint}
               onStartConnection={handleStartConnection}
               onPortMouseUp={handlePortMouseUp}
             />

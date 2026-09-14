@@ -16,6 +16,7 @@ export default function NodeInspector({
   selectedNode,
   onUpdateConfig,
   onUpdateTitle,
+  onToggleBreakpoint,
   onClose,
   onDeleteNode
 }) {
@@ -87,6 +88,23 @@ export default function NodeInspector({
             value={selectedNode.title || ''}
             onChange={(e) => onUpdateTitle(selectedNode.id, e.target.value)}
             placeholder="Label this node..."
+          />
+        </div>
+
+        {/* Execution Breakpoint Toggle */}
+        <div className="form-group" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(239, 68, 68, 0.08)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.25)', marginBottom: '16px' }}>
+          <div>
+            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }}></span>
+              Execution Breakpoint
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>Pause pipeline run at this node for inspection</div>
+          </div>
+          <input 
+            type="checkbox"
+            checked={!!selectedNode.breakpoint}
+            onChange={() => onToggleBreakpoint && onToggleBreakpoint(selectedNode.id)}
+            style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#ef4444' }}
           />
         </div>
 
@@ -259,6 +277,53 @@ export default function NodeInspector({
                 className="form-input"
                 value={config.compareValue || ''}
                 onChange={(e) => handleConfigChange('compareValue', e.target.value)}
+              />
+            </div>
+          </>
+        )}
+
+        {/* HITL HUMAN APPROVAL GATE FIELDS */}
+        {selectedNode.type === 'hitl_gate' && (
+          <>
+            <div className="form-group">
+              <label className="form-label">Review Action Title</label>
+              <input 
+                type="text" 
+                className="form-input"
+                value={config.actionTitle || ''}
+                onChange={(e) => handleConfigChange('actionTitle', e.target.value)}
+                placeholder="E.g., Authorize Stripe Refund Dispatch"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Risk Level Gate</label>
+              <select 
+                className="form-select"
+                value={config.riskLevel || 'HIGH'}
+                onChange={(e) => handleConfigChange('riskLevel', e.target.value)}
+              >
+                <option value="LOW">Low (Informational Review)</option>
+                <option value="MEDIUM">Medium (Data Mutation)</option>
+                <option value="HIGH">High (External API / Queue Dispatch)</option>
+                <option value="CRITICAL">Critical (Financial / Production DB)</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Review Timeout (Minutes)</label>
+              <input 
+                type="number" 
+                className="form-input"
+                value={config.timeoutMinutes || 15}
+                onChange={(e) => handleConfigChange('timeoutMinutes', parseInt(e.target.value) || 15)}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Ops Notification Channel</label>
+              <input 
+                type="text" 
+                className="form-input"
+                value={config.notificationChannel || '#ops-approvals'}
+                onChange={(e) => handleConfigChange('notificationChannel', e.target.value)}
               />
             </div>
           </>

@@ -49,6 +49,18 @@ def ${fnName}(state: AgentState) -> Dict[str, Any]:
         "intermediate_steps": [{"node": "${node.title}", "status": "success", "data": current_input}]
     }
 `;
+    } else if (node.type === 'hitl_gate') {
+      code += `    # Human-in-the-Loop Review Gate (Risk Level: ${node.config?.riskLevel || 'HIGH'})
+    print("🛡️ [HITL Gate] Pausing execution for operator authorization: ${node.config?.actionTitle || 'Approval'}")
+    # In production LangGraph, this maps to interrupt_before=["${nodeVar}"]
+    operator_approved = True  # Replace with human interactive prompt or webhook
+    if not operator_approved:
+        raise PermissionError("Action terminated by Human Operator")
+    return {
+        "execution_status": "OPERATOR_APPROVED",
+        "intermediate_steps": [{"node": "${node.title}", "hitl_verified": True, "risk": "${node.config?.riskLevel || 'HIGH'}"}]
+    }
+`;
     } else if (node.type.includes('ralph')) {
       code += `    # Ralph Autonomous Loop (Self-Evaluation Gate)
     print("Evaluating output against criteria: ${node.config?.evaluationCriteria || 'Quality & SLA'}")
@@ -188,7 +200,28 @@ export interface AgentContext {
 
   nodes.forEach(node => {
     const fnName = `execute_${sanitizeName(node.title)}_${node.id.slice(-4)}`;
-    code += `
+    if (node.type === 'hitl_gate') {
+      code += `
+async function ${fnName}(ctx: AgentContext): Promise<any> {
+  console.log('🛡️ [HITL Gate] Awaiting Human Operator approval: "${node.config?.actionTitle || 'Authorization'}" (Risk: ${node.config?.riskLevel || 'HIGH'})');
+  
+  // In production, integrate webhook approval or CLI prompt
+  const operatorApproved = true; 
+  if (!operatorApproved) {
+    throw new Error('Pipeline execution terminated by Human Operator');
+  }
+
+  return {
+    nodeId: "${node.id}",
+    title: "${node.title}",
+    status: "approved",
+    authorizedAt: new Date().toISOString(),
+    riskLevel: "${node.config?.riskLevel || 'HIGH'}"
+  };
+}
+`;
+    } else {
+      code += `
 async function ${fnName}(ctx: AgentContext): Promise<any> {
   console.log('[Executing Node] ${node.title} (${node.type})');
   
@@ -201,6 +234,7 @@ async function ${fnName}(ctx: AgentContext): Promise<any> {
   };
 }
 `;
+    }
   });
 
   code += `

@@ -21,7 +21,8 @@ import {
   Database,
   Repeat,
   Target,
-  Radio
+  Radio,
+  ShieldCheck
 } from 'lucide-react';
 import { NODE_CATEGORIES, NODE_DEFINITIONS } from '../data/nodeDefinitions';
 
@@ -46,7 +47,8 @@ const ICON_MAP = {
   Database,
   Repeat,
   Target,
-  Radio
+  Radio,
+  ShieldCheck
 };
 
 export default function Sidebar({ onAddNode }) {
