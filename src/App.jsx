@@ -155,6 +155,10 @@ export default function App() {
   const [totalTokens, setTotalTokens] = useState('0');
   const [totalLatency, setTotalLatency] = useState('0ms');
 
+  // Time-Travel Replay States
+  const [executionSnapshots, setExecutionSnapshots] = useState([]);
+  const [replayStepIndex, setReplayStepIndex] = useState(null);
+
   // HITL & Breakpoint States
   const [hitlModalState, setHitlModalState] = useState(null);
   const hitlResolverRef = useRef(null);
@@ -334,6 +338,8 @@ export default function App() {
     setExecutionStates({});
     setActiveWireIds([]);
     setLogs([]);
+    setExecutionSnapshots([]);
+    setReplayStepIndex(null);
     setTotalTokens('0');
     setTotalLatency('0ms');
   };
@@ -374,6 +380,8 @@ export default function App() {
     setExecutionStates({});
     setActiveWireIds([]);
     setLogs([]);
+    setExecutionSnapshots([]);
+    setReplayStepIndex(null);
   };
 
   const handleClearCanvas = () => {
@@ -385,6 +393,8 @@ export default function App() {
       setExecutionStates({});
       setActiveWireIds([]);
       setLogs([]);
+      setExecutionSnapshots([]);
+      setReplayStepIndex(null);
     }
   };
 
@@ -409,7 +419,7 @@ export default function App() {
   };
 
   // Core Pipeline Execution Function
-  const executePipelineInternal = async (payloadToRun) => {
+  const executePipelineInternal = async (payloadToRun, startStepIndex = 0) => {
     if (nodes.length === 0) return { responseText: 'No nodes in canvas' };
 
     if (!validationResult.isValid) {
@@ -427,7 +437,16 @@ export default function App() {
     simulationAbortRef.current = false;
     setExecutionStates({});
     setActiveWireIds([]);
-    setLogs([]);
+
+    if (startStepIndex === 0) {
+      setLogs([]);
+      setExecutionSnapshots([]);
+      setReplayStepIndex(null);
+    } else {
+      setLogs(prev => prev.slice(0, startStepIndex));
+      setExecutionSnapshots(prev => prev.slice(0, startStepIndex));
+      setReplayStepIndex(null);
+    }
 
     const startTime = Date.now();
     let accumulatedTokens = 0;
@@ -447,7 +466,9 @@ export default function App() {
     };
 
     addLog(
-      executionMode === 'live'
+      startStepIndex > 0
+        ? `🔄 Re-running pipeline starting from Step ${startStepIndex + 1} with custom operator state...`
+        : executionMode === 'live'
         ? '🚀 Initiating LIVE multi-agent pipeline with real LLM inference...'
         : 'Initiating autonomous simulated workflow pipeline...',
       'System',
@@ -492,6 +513,17 @@ export default function App() {
 
       const currentNode = executionQueue[i];
       const nodeDef = NODE_DEFINITIONS.find(d => d.type === currentNode.type);
+
+      // Fast-forward upstream nodes when re-running from step
+      if (i < startStepIndex) {
+        const cachedSnap = executionSnapshots[i];
+        if (cachedSnap) {
+          nodeOutputs.set(currentNode.id, cachedSnap.outputData);
+          setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'success' }));
+        }
+        continue;
+      }
+
       traversedNodeTitles.push(currentNode.title || nodeDef?.name);
 
       const incomingConns = connections.filter(c => c.toNode === currentNode.id);
@@ -500,8 +532,11 @@ export default function App() {
 
       setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'running' }));
 
-      let currentInput = payloadToRun;
-      if (incomingConns.length > 0) {
+      let currentInput = (i === startStepIndex && startStepIndex > 0 && payloadToRun !== undefined)
+        ? payloadToRun
+        : payloadToRun;
+
+      if (incomingConns.length > 0 && (startStepIndex === 0 || i > startStepIndex)) {
         const upstreamOutputs = incomingConns
           .map(c => nodeOutputs.get(c.fromNode))
           .filter(Boolean);
@@ -541,6 +576,27 @@ export default function App() {
           setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'error' }));
           stepOutput = { approved: false, rejectedBy: 'Human Operator', reason: decision.reason, input: currentInput };
           nodeOutputs.set(currentNode.id, stepOutput);
+
+          // Snapshot rejected gate
+          setExecutionSnapshots(prev => {
+            const next = [...prev];
+            next[i] = {
+              stepIndex: i,
+              nodeId: currentNode.id,
+              nodeTitle: currentNode.title || nodeDef?.name,
+              nodeType: currentNode.type,
+              category: nodeDef?.category,
+              status: 'error',
+              inputData: currentInput,
+              outputData: stepOutput,
+              tokens: 0,
+              timestamp: new Date().toLocaleTimeString(),
+              elapsedMs: Date.now() - startTime,
+              wireIds: wireIds
+            };
+            return next;
+          });
+
           simulationAbortRef.current = true;
           break;
         } else {
@@ -549,6 +605,27 @@ export default function App() {
           nodeOutputs.set(currentNode.id, stepOutput);
           finalPayload = stepOutput;
           setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'success' }));
+
+          // Snapshot approved gate
+          setExecutionSnapshots(prev => {
+            const next = [...prev];
+            next[i] = {
+              stepIndex: i,
+              nodeId: currentNode.id,
+              nodeTitle: currentNode.title || nodeDef?.name,
+              nodeType: currentNode.type,
+              category: nodeDef?.category,
+              status: 'success',
+              inputData: currentInput,
+              outputData: stepOutput,
+              tokens: 0,
+              timestamp: new Date().toLocaleTimeString(),
+              elapsedMs: Date.now() - startTime,
+              wireIds: wireIds
+            };
+            return next;
+          });
+
           continue;
         }
       }
@@ -650,6 +727,26 @@ export default function App() {
       accumulatedTokens += nodeTokens;
       setTotalTokens(accumulatedTokens.toLocaleString());
       setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'success' }));
+
+      // Record Time-Travel Replay Snapshot
+      setExecutionSnapshots(prev => {
+        const next = [...prev];
+        next[i] = {
+          stepIndex: i,
+          nodeId: currentNode.id,
+          nodeTitle: currentNode.title || nodeDef?.name,
+          nodeType: currentNode.type,
+          category: nodeDef?.category,
+          status: 'success',
+          inputData: currentInput,
+          outputData: stepOutput,
+          tokens: nodeTokens,
+          timestamp: new Date().toLocaleTimeString(),
+          elapsedMs: Date.now() - startTime,
+          wireIds: wireIds
+        };
+        return next;
+      });
     }
 
     const elapsed = Date.now() - startTime;
@@ -692,6 +789,23 @@ export default function App() {
     };
   };
 
+  const handleRerunFromStep = useCallback(async (stepIndex, modifiedInput) => {
+    if (isRunning) return;
+    await executePipelineInternal(modifiedInput, stepIndex);
+  }, [isRunning]);
+
+  const activeReplaySnapshot = replayStepIndex !== null && executionSnapshots[replayStepIndex]
+    ? executionSnapshots[replayStepIndex]
+    : null;
+
+  const displayedExecutionStates = activeReplaySnapshot
+    ? { [activeReplaySnapshot.nodeId]: 'replay' }
+    : executionStates;
+
+  const displayedActiveWires = activeReplaySnapshot
+    ? (activeReplaySnapshot.wireIds || [])
+    : activeWireIds;
+
   return (
     <div className="app-container">
       {/* Top Header */}
@@ -730,8 +844,8 @@ export default function App() {
           nodes={nodes}
           connections={connections}
           selectedNodeId={selectedNodeId}
-          executionStates={executionStates}
-          activeWireIds={activeWireIds}
+          executionStates={displayedExecutionStates}
+          activeWireIds={displayedActiveWires}
           cycleNodeIds={validationResult.cycleNodeIds}
           onSelectNode={(node) => setSelectedNodeId(node ? node.id : null)}
           onUpdateNodePosition={handleUpdateNodePosition}
@@ -768,9 +882,18 @@ export default function App() {
       <ExecutionConsole 
         logs={logs}
         isRunning={isRunning}
-        onClearLogs={() => setLogs([])}
+        onClearLogs={() => {
+          setLogs([]);
+          setExecutionSnapshots([]);
+          setReplayStepIndex(null);
+        }}
         totalTokens={totalTokens}
         totalLatency={totalLatency}
+        executionSnapshots={executionSnapshots}
+        replayStepIndex={replayStepIndex}
+        onSelectReplayStep={(idxOrFn) => setReplayStepIndex(idxOrFn)}
+        onClearReplay={() => setReplayStepIndex(null)}
+        onRerunFromStep={handleRerunFromStep}
       />
 
       {/* Test Run Payload Modal */}

@@ -109,12 +109,14 @@ export default function NodeCard({
 
   return (
     <div 
-      className={`node-card ${isSelected ? 'is-selected' : ''} ${executionStatus === 'running' ? 'is-running' : ''} ${executionStatus === 'success' ? 'is-success' : ''} ${executionStatus === 'paused' ? 'is-paused' : ''} ${node.breakpoint ? 'has-breakpoint' : ''}`}
+      className={`node-card ${isSelected ? 'is-selected' : ''} ${executionStatus === 'running' ? 'is-running' : ''} ${executionStatus === 'success' ? 'is-success' : ''} ${executionStatus === 'paused' ? 'is-paused' : ''} ${executionStatus === 'replay' ? 'is-replay' : ''} ${node.breakpoint ? 'has-breakpoint' : ''}`}
       style={{
         left: `${node.x}px`,
         top: `${node.y}px`,
         borderColor: isCycleNode 
           ? '#ef4444' 
+          : executionStatus === 'replay'
+          ? '#818cf8'
           : executionStatus === 'paused'
           ? '#f59e0b'
           : isSelected 
@@ -122,6 +124,8 @@ export default function NodeCard({
           : category.borderColor,
         boxShadow: isCycleNode 
           ? '0 0 16px rgba(239, 68, 68, 0.4)' 
+          : executionStatus === 'replay'
+          ? '0 0 25px rgba(99, 102, 241, 0.8)'
           : executionStatus === 'paused'
           ? '0 0 20px rgba(245, 158, 11, 0.6)'
           : undefined
@@ -136,10 +140,12 @@ export default function NodeCard({
         style={{ 
           background: isCycleNode 
             ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.05) 100%)' 
+            : executionStatus === 'replay'
+            ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.35) 0%, rgba(139, 92, 246, 0.15) 100%)'
             : executionStatus === 'paused'
             ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.3) 0%, rgba(245, 158, 11, 0.1) 100%)'
             : category.bgGradient,
-          borderBottom: `1px solid ${isCycleNode ? '#ef4444' : executionStatus === 'paused' ? '#f59e0b' : category.borderColor}`
+          borderBottom: `1px solid ${isCycleNode ? '#ef4444' : executionStatus === 'replay' ? '#818cf8' : executionStatus === 'paused' ? '#f59e0b' : category.borderColor}`
         }}
       >
         <div className="node-title-wrap">
@@ -200,12 +206,12 @@ export default function NodeCard({
           <span 
             className="node-badge"
             style={{ 
-              background: isCycleNode ? 'rgba(239, 68, 68, 0.2)' : executionStatus === 'paused' ? 'rgba(245, 158, 11, 0.3)' : category.glowColor, 
-              color: isCycleNode ? '#f87171' : executionStatus === 'paused' ? '#fbbf24' : category.color,
-              border: `1px solid ${isCycleNode ? '#ef4444' : executionStatus === 'paused' ? '#f59e0b' : category.borderColor}`
+              background: isCycleNode ? 'rgba(239, 68, 68, 0.2)' : executionStatus === 'replay' ? 'rgba(99, 102, 241, 0.3)' : executionStatus === 'paused' ? 'rgba(245, 158, 11, 0.3)' : category.glowColor, 
+              color: isCycleNode ? '#f87171' : executionStatus === 'replay' ? '#a5b4fc' : executionStatus === 'paused' ? '#fbbf24' : category.color,
+              border: `1px solid ${isCycleNode ? '#ef4444' : executionStatus === 'replay' ? '#818cf8' : executionStatus === 'paused' ? '#f59e0b' : category.borderColor}`
             }}
           >
-            {isCycleNode ? 'CYCLE LOOP' : executionStatus === 'paused' ? 'PAUSED' : category.badge}
+            {isCycleNode ? 'CYCLE LOOP' : executionStatus === 'replay' ? 'REPLAY STEP' : executionStatus === 'paused' ? 'PAUSED' : category.badge}
           </span>
           {node.breakpoint && (
             <span 

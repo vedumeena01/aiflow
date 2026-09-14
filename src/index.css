@@ -626,6 +626,11 @@ body {
   border-color: #f59e0b !important;
   animation: pulse-border-amber 1.8s infinite;
 }
+.node-card.is-replay {
+  box-shadow: 0 0 28px rgba(99, 102, 241, 0.85), 0 0 0 2px #818cf8 !important;
+  border-color: #818cf8 !important;
+  animation: pulse-border-replay 1.6s infinite;
+}
 .node-card.has-breakpoint {
   outline: 1px dashed rgba(239, 68, 68, 0.35);
   outline-offset: 3px;
@@ -634,6 +639,12 @@ body {
   color: #ef4444 !important;
   background: rgba(239, 68, 68, 0.2) !important;
   border-color: #ef4444 !important;
+}
+
+@keyframes pulse-border-replay {
+  0% { box-shadow: 0 0 14px rgba(99, 102, 241, 0.5), 0 0 0 1px #818cf8; }
+  50% { box-shadow: 0 0 32px rgba(129, 140, 248, 0.95), 0 0 0 3px #a5b4fc; }
+  100% { box-shadow: 0 0 14px rgba(99, 102, 241, 0.5), 0 0 0 1px #818cf8; }
 }
 
 @keyframes pulse-border-amber {

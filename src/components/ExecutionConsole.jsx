@@ -12,15 +12,22 @@ import {
   Maximize2,
   Minimize2,
   Layers,
-  Sparkles
+  Sparkles,
+  History
 } from 'lucide-react';
+import ExecutionTimeline from './ExecutionTimeline';
 
 export default function ExecutionConsole({
   logs,
   isRunning,
   onClearLogs,
   totalTokens,
-  totalLatency
+  totalLatency,
+  executionSnapshots = [],
+  replayStepIndex = null,
+  onSelectReplayStep,
+  onClearReplay,
+  onRerunFromStep
 }) {
   // 'collapsed' | 'medium' | 'maximized'
   const [viewState, setViewState] = useState('medium');
@@ -84,6 +91,11 @@ export default function ExecutionConsole({
               <Loader2 size={12} className="spin-animate" />
               <span>Pipeline Running...</span>
             </div>
+          ) : replayStepIndex !== null ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#a78bfa', fontSize: 11, background: 'rgba(139, 92, 246, 0.2)', border: '1px solid rgba(139, 92, 246, 0.5)', padding: '2px 8px', borderRadius: 4 }}>
+              <History size={12} />
+              <span>Replay: Step {replayStepIndex + 1}/{executionSnapshots.length}</span>
+            </div>
           ) : logs.length > 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#10b981', fontSize: 11, background: 'rgba(16, 185, 129, 0.15)', padding: '2px 8px', borderRadius: 4 }}>
               <CheckCircle2 size={12} />
@@ -131,6 +143,18 @@ export default function ExecutionConsole({
           </button>
         </div>
       </div>
+
+      {/* Execution Step-by-Step Replay Timeline Scrubber */}
+      {viewState !== 'collapsed' && executionSnapshots && executionSnapshots.length > 0 && (
+        <ExecutionTimeline 
+          snapshots={executionSnapshots}
+          activeStepIndex={replayStepIndex}
+          onSelectStep={onSelectReplayStep}
+          onClearReplay={onClearReplay}
+          onRerunFromStep={onRerunFromStep}
+          isRunning={isRunning}
+        />
+      )}
 
       {/* Console Log Stream Body */}
       {viewState !== 'collapsed' && (
