@@ -13,7 +13,10 @@ import {
   Key,
   MessageSquare,
   Sparkles,
-  Code2
+  Code2,
+  FolderKanban,
+  Save,
+  Check
 } from 'lucide-react';
 import { PREBUILT_TEMPLATES } from '../data/templates';
 
@@ -28,6 +31,10 @@ export default function Header({
   onOpenChatPlayground,
   isChatOpen,
   onOpenCodeExport,
+  onOpenVault,
+  onQuickSave,
+  savedCount = 0,
+  autoSaveStatus = 'saved', // 'saved' | 'unsaved'
   onRunWorkflow,
   onStopWorkflow,
   onOpenTestModal,
@@ -161,37 +168,103 @@ export default function Header({
           </button>
         </div>
 
-        {/* Template Quick Loader */}
-        <div style={{ position: 'relative' }}>
-          <select 
-            className="template-dropdown-btn"
-            defaultValue=""
-            onChange={(e) => {
-              if (e.target.value) {
-                const template = PREBUILT_TEMPLATES.find(t => t.id === e.target.value);
-                if (template) onLoadTemplate(template);
-                e.target.value = "";
-              }
+        {/* Template & Vault Quick Loader */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            className="btn btn-ghost"
+            onClick={onOpenVault}
+            title="Open Enterprise Workflow Vault & Templates"
+            style={{
+              padding: '5px 10px',
+              fontSize: 12,
+              background: 'rgba(99, 102, 241, 0.15)',
+              border: '1px solid rgba(99, 102, 241, 0.35)',
+              color: '#c7d2fe',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
             }}
           >
-            <option value="" disabled>✨ Load Template Workflow...</option>
-            {PREBUILT_TEMPLATES.map(tmpl => (
-              <option key={tmpl.id} value={tmpl.id}>
-                {tmpl.name} ({tmpl.tag})
-              </option>
-            ))}
-          </select>
+            <FolderKanban size={14} style={{ color: '#818cf8' }} />
+            <span>Vault</span>
+            <span
+              style={{
+                fontSize: 10,
+                padding: '1px 5px',
+                borderRadius: 10,
+                background: 'rgba(99, 102, 241, 0.3)',
+                color: '#e0e7ff',
+                fontWeight: 700
+              }}
+            >
+              {savedCount}
+            </span>
+          </button>
+
+          <div style={{ position: 'relative' }}>
+            <select 
+              className="template-dropdown-btn"
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value === '__vault__') {
+                  onOpenVault();
+                } else if (e.target.value) {
+                  const template = PREBUILT_TEMPLATES.find(t => t.id === e.target.value);
+                  if (template) onLoadTemplate(template);
+                }
+                e.target.value = "";
+              }}
+            >
+              <option value="" disabled>✨ Templates...</option>
+              {PREBUILT_TEMPLATES.map(tmpl => (
+                <option key={tmpl.id} value={tmpl.id}>
+                  {tmpl.name} ({tmpl.tag})
+                </option>
+              ))}
+              <option value="__vault__">📂 Browse All in Vault...</option>
+            </select>
+          </div>
         </div>
 
-        {/* Workflow Title */}
-        <input 
-          type="text" 
-          className="workflow-name-input" 
-          value={workflowName}
-          onChange={(e) => setWorkflowName(e.target.value)}
-          placeholder="Workflow Title..."
-          title="Click to rename workflow"
-        />
+        {/* Workflow Title & Quick Save */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input 
+            type="text" 
+            className="workflow-name-input" 
+            value={workflowName}
+            onChange={(e) => setWorkflowName(e.target.value)}
+            placeholder="Workflow Title..."
+            title="Click to rename workflow"
+          />
+
+          <button
+            className="btn btn-ghost"
+            onClick={onQuickSave}
+            title="Save workflow to Vault (Ctrl+S)"
+            style={{
+              padding: '6px 10px',
+              fontSize: 11,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              color: autoSaveStatus === 'saved' ? '#34d399' : '#f59e0b',
+              borderColor: autoSaveStatus === 'saved' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.4)',
+              background: autoSaveStatus === 'saved' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)'
+            }}
+          >
+            {autoSaveStatus === 'saved' ? (
+              <>
+                <Check size={12} style={{ color: '#10b981' }} />
+                <span>Saved</span>
+              </>
+            ) : (
+              <>
+                <Save size={12} style={{ color: '#f59e0b' }} />
+                <span>Save</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Actions */}
@@ -284,11 +357,11 @@ export default function Header({
           <span>Payload Mock</span>
         </button>
 
-        {/* Import JSON */}
+        {/* Import Package */}
         <button 
           className="btn btn-ghost" 
           onClick={() => fileInputRef.current?.click()}
-          title="Import workflow JSON"
+          title="Import .autoflow.json or JSON workflow"
         >
           <Upload size={14} />
           <span>Import</span>
@@ -297,18 +370,18 @@ export default function Header({
           type="file" 
           ref={fileInputRef} 
           style={{ display: 'none' }} 
-          accept=".json" 
+          accept=".json,.autoflow.json" 
           onChange={handleFileChange}
         />
 
-        {/* Export JSON */}
+        {/* Export Package */}
         <button 
           className="btn btn-ghost" 
           onClick={onExportWorkflow}
-          title="Export current workflow graph as JSON"
+          title="Export current workflow as .autoflow.json package"
         >
           <Download size={14} />
-          <span>JSON</span>
+          <span>Export .autoflow</span>
         </button>
 
         {/* Clear Canvas */}

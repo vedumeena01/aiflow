@@ -10,11 +10,19 @@ import ChatPlayground from './components/ChatPlayground';
 import CodeExportModal from './components/CodeExportModal';
 import HitlApprovalModal from './components/HitlApprovalModal';
 import KnowledgeBaseModal from './components/KnowledgeBaseModal';
+import WorkflowVaultModal from './components/WorkflowVaultModal';
 import { PREBUILT_TEMPLATES } from './data/templates';
 import { NODE_DEFINITIONS } from './data/nodeDefinitions';
 import { validateGraph, validateWorkflowSchema } from './utils/graphValidation';
 import { executeLiveAgentNode, verifyActionSafety } from './services/aiService';
 import { queryKnowledgeBase } from './services/ragService';
+import { 
+  getVaultWorkflows, 
+  saveWorkflowToVault, 
+  exportWorkflowPackage, 
+  parseAndValidateWorkflowFile,
+  saveDraftToStorage 
+} from './services/workflowStorage';
 
 const STORAGE_KEY = 'autoflow_ai_workflow_v1';
 const API_KEYS_STORAGE_KEY = 'autoflow_ai_api_keys';
@@ -80,6 +88,15 @@ export default function App() {
   const [apiSettingsOpen, setApiSettingsOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [codeExportOpen, setCodeExportOpen] = useState(false);
+  const [vaultOpen, setVaultOpen] = useState(false);
+  const [vaultCount, setVaultCount] = useState(() => getVaultWorkflows().length);
+  const [autoSaveStatus, setAutoSaveStatus] = useState('saved');
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const showToast = useCallback((msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  }, []);
 
   const handleSaveApiKeys = (newKeys) => {
     setApiKeys(newKeys);
@@ -122,6 +139,22 @@ export default function App() {
     setSelectedNodeId(null);
   }, [future, nodes, connections]);
 
+  const handleQuickSave = useCallback(() => {
+    try {
+      const record = saveWorkflowToVault({
+        name: workflowName,
+        nodes,
+        connections,
+        mockPayload
+      });
+      setVaultCount(getVaultWorkflows().length);
+      setAutoSaveStatus('saved');
+      showToast(`Saved "${record.name}" to Vault!`);
+    } catch (err) {
+      alert(`Failed to save: ${err.message}`);
+    }
+  }, [workflowName, nodes, connections, mockPayload, showToast]);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
@@ -135,11 +168,14 @@ export default function App() {
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         e.preventDefault();
         handleRedo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleQuickSave();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo]);
+  }, [handleUndo, handleRedo, handleQuickSave]);
 
   const validationResult = useMemo(() => {
     return validateGraph(nodes, connections);
@@ -205,38 +241,44 @@ export default function App() {
 
   const simulationAbortRef = useRef(false);
 
-  // Quota-Safe LocalStorage Sync
+  // Quota-Safe LocalStorage Sync & Debounced Auto-Save Draft
   useEffect(() => {
-    const cleanNodes = nodes.map(n => ({
-      id: n.id,
-      type: n.type,
-      title: n.title,
-      x: n.x,
-      y: n.y,
-      config: n.config,
-      breakpoint: n.breakpoint
-    }));
+    setAutoSaveStatus('unsaved');
+    const timer = setTimeout(() => {
+      const cleanNodes = nodes.map(n => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        x: n.x,
+        y: n.y,
+        config: n.config,
+        breakpoint: n.breakpoint
+      }));
 
-    const cleanConnections = connections.map(c => ({
-      id: c.id,
-      fromNode: c.fromNode,
-      fromOutput: c.fromOutput,
-      toNode: c.toNode,
-      toInput: c.toInput
-    }));
+      const cleanConnections = connections.map(c => ({
+        id: c.id,
+        fromNode: c.fromNode,
+        fromOutput: c.fromOutput,
+        toNode: c.toNode,
+        toInput: c.toInput
+      }));
 
-    const data = {
-      name: workflowName,
-      nodes: cleanNodes,
-      connections: cleanConnections,
-      mockPayload
-    };
+      const data = {
+        name: workflowName,
+        nodes: cleanNodes,
+        connections: cleanConnections,
+        mockPayload
+      };
 
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (e) {
-      console.warn('LocalStorage quota warning:', e);
-    }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        setAutoSaveStatus('saved');
+      } catch (e) {
+        console.warn('LocalStorage quota warning:', e);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, [workflowName, nodes, connections, mockPayload]);
 
   const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;
@@ -347,44 +389,55 @@ export default function App() {
     setTotalLatency('0ms');
   };
 
-  // Export / Import
+  // Export / Import & Vault Load
   const handleExportWorkflow = () => {
-    const data = {
-      version: 'autoflow-v1',
-      exportedAt: new Date().toISOString(),
+    exportWorkflowPackage({
       name: workflowName,
       nodes,
       connections,
       mockPayload
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${workflowName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_workflow.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    });
+    showToast(`Exported "${workflowName}.autoflow.json" package`);
   };
 
   const handleImportWorkflow = (rawJson) => {
-    const validation = validateWorkflowSchema(rawJson);
-    if (!validation.valid) {
-      alert(`Import Rejected: ${validation.error}`);
+    const res = parseAndValidateWorkflowFile(rawJson);
+    if (!res.valid) {
+      alert(`Import Rejected: ${res.error}`);
       return;
     }
 
     pushHistory(nodes, connections);
-    const { name, nodes: importedNodes, connections: importedConns, mockPayload: importedPayload } = validation.sanitizedWorkflow;
-    setWorkflowName(name);
-    setNodes(importedNodes);
-    setConnections(importedConns);
-    setMockPayload(importedPayload);
+    const wf = res.workflow;
+    setWorkflowName(wf.name);
+    setNodes(wf.nodes);
+    setConnections(wf.connections);
+    setMockPayload(wf.mockPayload || {});
     setSelectedNodeId(null);
     setExecutionStates({});
     setActiveWireIds([]);
     setLogs([]);
     setExecutionSnapshots([]);
     setReplayStepIndex(null);
+    showToast(`Imported "${wf.name}" (${wf.nodes.length} nodes)`);
+  };
+
+  const handleLoadWorkflowFromVault = (wf) => {
+    if (isRunning) return;
+    pushHistory(nodes, connections);
+    setWorkflowName(wf.name);
+    setNodes(wf.nodes || []);
+    setConnections(wf.connections || []);
+    setMockPayload(wf.mockPayload || wf.sampleInput || {});
+    setSelectedNodeId(null);
+    setExecutionStates({});
+    setActiveWireIds([]);
+    setLogs([]);
+    setExecutionSnapshots([]);
+    setReplayStepIndex(null);
+    setTotalTokens('0');
+    setTotalLatency('0ms');
+    showToast(`Loaded "${wf.name}" to canvas`);
   };
 
   const handleClearCanvas = () => {
@@ -858,6 +911,10 @@ export default function App() {
         onOpenChatPlayground={() => setIsChatOpen(!isChatOpen)}
         isChatOpen={isChatOpen}
         onOpenCodeExport={() => setCodeExportOpen(true)}
+        onOpenVault={() => setVaultOpen(true)}
+        onQuickSave={handleQuickSave}
+        savedCount={vaultCount}
+        autoSaveStatus={autoSaveStatus}
         onRunWorkflow={handleRunWorkflow}
         onStopWorkflow={handleStopWorkflow}
         onOpenTestModal={() => setTestModalOpen(true)}
@@ -981,6 +1038,58 @@ export default function App() {
         onClose={() => setKnowledgeModalNode(null)}
         onSaveNodeConfig={handleUpdateNodeConfig}
       />
+
+      {/* Enterprise Workflow Vault & Templates Modal */}
+      <WorkflowVaultModal 
+        isOpen={vaultOpen}
+        onClose={() => {
+          setVaultOpen(false);
+          setVaultCount(getVaultWorkflows().length);
+        }}
+        currentWorkflowState={{
+          workflowName,
+          nodes,
+          connections,
+          mockPayload
+        }}
+        onLoadWorkflow={handleLoadWorkflowFromVault}
+        onNotification={showToast}
+      />
+
+      {/* Persistent Toast Notification Pill */}
+      {toastMessage && (
+        <div 
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            background: 'rgba(15, 23, 42, 0.95)',
+            border: '1px solid rgba(99, 102, 241, 0.5)',
+            color: '#f8fafc',
+            padding: '10px 18px',
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(99, 102, 241, 0.3)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+        >
+          <span 
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: '#10b981',
+              boxShadow: '0 0 8px #10b981'
+            }}
+          />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 }
