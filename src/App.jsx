@@ -9,10 +9,12 @@ import ApiSettingsModal from './components/ApiSettingsModal';
 import ChatPlayground from './components/ChatPlayground';
 import CodeExportModal from './components/CodeExportModal';
 import HitlApprovalModal from './components/HitlApprovalModal';
+import KnowledgeBaseModal from './components/KnowledgeBaseModal';
 import { PREBUILT_TEMPLATES } from './data/templates';
 import { NODE_DEFINITIONS } from './data/nodeDefinitions';
 import { validateGraph, validateWorkflowSchema } from './utils/graphValidation';
 import { executeLiveAgentNode, verifyActionSafety } from './services/aiService';
+import { queryKnowledgeBase } from './services/ragService';
 
 const STORAGE_KEY = 'autoflow_ai_workflow_v1';
 const API_KEYS_STORAGE_KEY = 'autoflow_ai_api_keys';
@@ -146,6 +148,7 @@ export default function App() {
   // UI States
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [testModalOpen, setTestModalOpen] = useState(false);
+  const [knowledgeModalNode, setKnowledgeModalNode] = useState(null);
 
   // Execution & Simulation States
   const [isRunning, setIsRunning] = useState(false);
@@ -630,8 +633,43 @@ export default function App() {
         }
       }
 
+      // --- VECTOR RAG & KNOWLEDGE BASE RETRIEVAL ---
+      if (currentNode.type === 'vector_rag') {
+        addLog(`📚 Querying Vector Knowledge Base "${currentNode.config?.knowledgeStoreName || 'Enterprise Docs'}"...`, currentNode.title, 'running');
+        const queryText = typeof currentInput === 'object'
+          ? (currentInput.user_query || currentInput.message || currentInput.query || JSON.stringify(currentInput))
+          : String(currentInput || '');
+
+        const ragResult = queryKnowledgeBase({
+          documents: currentNode.config?.documents || [],
+          query: queryText,
+          topK: currentNode.config?.topK || 3,
+          similarityThreshold: currentNode.config?.similarityThreshold || 0.35,
+          chunkSize: currentNode.config?.chunkSize || 400
+        });
+
+        stepOutput = {
+          query: queryText,
+          matchCount: ragResult.matchCount,
+          retrieved_chunks: ragResult.retrievedChunks,
+          augmented_context: ragResult.augmentedContext,
+          user_query: typeof currentInput === 'object' ? currentInput.user_query || currentInput.message : currentInput,
+          grounded_prompt: `[GROUNDED KNOWLEDGE CONTEXT]:\n${ragResult.augmentedContext}\n\n[USER INQUIRY]:\n${queryText}`
+        };
+
+        const scoresList = ragResult.retrievedChunks.map(c => `${Math.round(c.score * 100)}%`).join(', ');
+        addLog(
+          `Retrieved ${ragResult.matchCount} semantic chunk(s) [Relevance: ${scoresList || 'default'}]`,
+          currentNode.title,
+          'success',
+          stepOutput
+        );
+
+        nodeTokens = ragResult.matchCount * 65;
+        await new Promise(r => setTimeout(r, 350));
+      } 
       // --- LIVE MODE EXECUTION ---
-      if (executionMode === 'live') {
+      else if (executionMode === 'live') {
         if (nodeDef?.category === 'trigger') {
           stepOutput = payloadToRun;
           addLog(`Injected live trigger input payload`, currentNode.title, 'success', stepOutput);
@@ -863,6 +901,7 @@ export default function App() {
             onUpdateConfig={handleUpdateNodeConfig}
             onUpdateTitle={handleUpdateNodeTitle}
             onToggleBreakpoint={handleToggleBreakpoint}
+            onOpenKnowledgeModal={(node) => setKnowledgeModalNode(node)}
             onClose={() => setSelectedNodeId(null)}
             onDeleteNode={handleDeleteNode}
           />
@@ -933,6 +972,14 @@ export default function App() {
         isBreakpoint={hitlModalState?.isBreakpoint}
         onApprove={handleHitlApprove}
         onReject={handleHitlReject}
+      />
+
+      {/* Vector Knowledge Base Manager Modal */}
+      <KnowledgeBaseModal 
+        isOpen={!!knowledgeModalNode}
+        node={knowledgeModalNode}
+        onClose={() => setKnowledgeModalNode(null)}
+        onSaveNodeConfig={handleUpdateNodeConfig}
       />
     </div>
   );

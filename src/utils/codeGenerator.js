@@ -61,6 +61,19 @@ def ${fnName}(state: AgentState) -> Dict[str, Any]:
         "intermediate_steps": [{"node": "${node.title}", "hitl_verified": True, "risk": "${node.config?.riskLevel || 'HIGH'}"}]
     }
 `;
+    } else if (node.type === 'vector_rag') {
+      code += `    # Vector RAG & Knowledge Base Retriever (${node.config?.knowledgeStoreName || 'Enterprise Docs'})
+    print("📚 Querying vector store for semantic context (Top-K: ${node.config?.topK || 3})")
+    # from langchain_community.vectorstores import Chroma
+    # retriever = vectorstore.as_retriever(search_kwargs={"k": ${node.config?.topK || 3}})
+    # context_chunks = retriever.invoke(str(current_input))
+    augmented_context = """[SOURCE 1: ${node.config?.documents?.[0]?.title || 'Support SLA'}]\\n${node.config?.documents?.[0]?.content?.slice(0, 180) || 'Enterprise policy guarantees.'}..."""
+    return {
+        "augmented_context": augmented_context,
+        "retrieved_chunks": [{"title": "${node.config?.documents?.[0]?.title || 'Support SLA'}", "score": 0.94}],
+        "intermediate_steps": [{"node": "${node.title}", "retrieval_status": "success", "k": ${node.config?.topK || 3}}]
+    }
+`;
     } else if (node.type.includes('ralph')) {
       code += `    # Ralph Autonomous Loop (Self-Evaluation Gate)
     print("Evaluating output against criteria: ${node.config?.evaluationCriteria || 'Quality & SLA'}")
@@ -217,6 +230,27 @@ async function ${fnName}(ctx: AgentContext): Promise<any> {
     status: "approved",
     authorizedAt: new Date().toISOString(),
     riskLevel: "${node.config?.riskLevel || 'HIGH'}"
+  };
+}
+`;
+    } else if (node.type === 'vector_rag') {
+      code += `
+async function ${fnName}(ctx: AgentContext): Promise<any> {
+  console.log('📚 [Vector RAG] Querying Knowledge Base "${node.config?.knowledgeStoreName || 'Docs'}" (Top-K: ${node.config?.topK || 3})');
+  
+  // In production, invoke Pinecone / Chroma / Qdrant client:
+  const retrievedChunks = [
+    { title: "${node.config?.documents?.[0]?.title || 'SLA Policy'}", score: 0.94 }
+  ];
+  const augmentedContext = "[GROUNDED KNOWLEDGE CONTEXT] Retrieved verified documentation.";
+  
+  ctx.payload = { ...ctx.payload, augmentedContext, retrievedChunks };
+  return {
+    nodeId: "${node.id}",
+    title: "${node.title}",
+    status: "success",
+    retrievedCount: retrievedChunks.length,
+    timestamp: new Date().toISOString()
   };
 }
 `;

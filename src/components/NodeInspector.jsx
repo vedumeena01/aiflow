@@ -8,7 +8,8 @@ import {
   Code2, 
   Copy, 
   ExternalLink,
-  Info
+  Info,
+  Database
 } from 'lucide-react';
 import { NODE_CATEGORIES, NODE_DEFINITIONS, AI_MODELS } from '../data/nodeDefinitions';
 
@@ -17,6 +18,7 @@ export default function NodeInspector({
   onUpdateConfig,
   onUpdateTitle,
   onToggleBreakpoint,
+  onOpenKnowledgeModal,
   onClose,
   onDeleteNode
 }) {
@@ -109,7 +111,7 @@ export default function NodeInspector({
         </div>
 
         {/* AI MODEL SELECTOR (If node is an AI agent) */}
-        {nodeDef.category === 'agent' && (
+        {nodeDef.category === 'agent' && selectedNode.type !== 'vector_rag' && (
           <>
             <div className="form-group">
               <label className="form-label">
@@ -152,31 +154,34 @@ export default function NodeInspector({
               </div>
             </div>
 
-            {/* System Prompt / Persona */}
+            {/* System Prompt */}
             <div className="form-group">
-              <label className="form-label">System Role & Directives</label>
+              <label className="form-label">
+                <span>System Role & Persona</span>
+                <span className="form-helper">Instructions</span>
+              </label>
               <textarea 
-                className="form-textarea" 
-                rows={4}
+                className="form-textarea"
+                rows={3}
                 value={config.systemPrompt || ''}
                 onChange={(e) => handleConfigChange('systemPrompt', e.target.value)}
-                placeholder="You are an autonomous AI specialist..."
+                placeholder="Describe how the agent should think and respond..."
               />
             </div>
 
-            {/* Prompt Template with Variable Chips */}
+            {/* User Prompt Template (for llm_prompt) */}
             {selectedNode.type === 'llm_prompt' && (
               <div className="form-group">
                 <label className="form-label">
                   <span>User Prompt Template</span>
-                  <span className="form-helper">Interpolation ready</span>
+                  <span className="form-helper">Supports &#123;&#123;vars&#125;&#125;</span>
                 </label>
                 <textarea 
-                  className="form-textarea" 
+                  className="form-textarea"
                   rows={4}
                   value={config.userPromptTemplate || ''}
                   onChange={(e) => handleConfigChange('userPromptTemplate', e.target.value)}
-                  placeholder="Analyze the incoming inquiry: {{input_context}}"
+                  placeholder="Template with {{variables}} from incoming connections..."
                 />
 
                 <div style={{ marginTop: 4 }}>
@@ -200,6 +205,94 @@ export default function NodeInspector({
                 </div>
               </div>
             )}
+          </>
+        )}
+
+        {/* VECTOR RAG & KNOWLEDGE BASE FIELDS */}
+        {selectedNode.type === 'vector_rag' && (
+          <>
+            <div className="form-group">
+              <label className="form-label">Knowledge Base Title</label>
+              <input 
+                type="text" 
+                className="form-input"
+                value={config.knowledgeStoreName || 'Enterprise Knowledge Base'}
+                onChange={(e) => handleConfigChange('knowledgeStoreName', e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                <span>Top-K Chunks Retrieved</span>
+                <span className="range-val">{config.topK ?? 3}</span>
+              </label>
+              <div className="range-wrap">
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="5" 
+                  step="1"
+                  className="form-range"
+                  value={config.topK ?? 3}
+                  onChange={(e) => handleConfigChange('topK', parseInt(e.target.value))}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                <span>Similarity Threshold</span>
+                <span className="range-val">{config.similarityThreshold ?? 0.70}</span>
+              </label>
+              <div className="range-wrap">
+                <input 
+                  type="range" 
+                  min="0.30" 
+                  max="0.95" 
+                  step="0.05"
+                  className="form-range"
+                  value={config.similarityThreshold ?? 0.70}
+                  onChange={(e) => handleConfigChange('similarityThreshold', parseFloat(e.target.value))}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Chunk Size (Characters)</label>
+              <input 
+                type="number" 
+                className="form-input"
+                value={config.chunkSize || 400}
+                onChange={(e) => handleConfigChange('chunkSize', parseInt(e.target.value) || 400)}
+              />
+            </div>
+
+            <div className="form-group">
+              <button
+                type="button"
+                onClick={() => onOpenKnowledgeModal && onOpenKnowledgeModal(selectedNode)}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(139, 92, 246, 0.2) 100%)',
+                  border: '1px solid #818cf8',
+                  color: '#ffffff',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 0 15px rgba(99, 102, 241, 0.35)',
+                  marginTop: '6px'
+                }}
+              >
+                <Database size={15} style={{ color: '#818cf8' }} />
+                <span>Manage Knowledge Docs ({config.documents?.length || 0} Loaded)</span>
+              </button>
+            </div>
           </>
         )}
 

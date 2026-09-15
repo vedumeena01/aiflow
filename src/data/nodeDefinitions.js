@@ -201,6 +201,39 @@ export const NODE_DEFINITIONS = [
       maxSources: 5
     }
   },
+  {
+    type: 'vector_rag',
+    category: 'agent',
+    name: 'Vector RAG & Knowledge Base',
+    description: 'Retrieves semantically relevant document chunks from vector embeddings to ground AI responses',
+    icon: 'Database',
+    inputs: ['query_input'],
+    outputs: ['augmented_context', 'retrieved_chunks'],
+    defaultConfig: {
+      knowledgeStoreName: 'Enterprise Knowledge Base',
+      topK: 3,
+      similarityThreshold: 0.70,
+      chunkSize: 400,
+      chunkOverlap: 50,
+      documents: [
+        {
+          id: 'doc_sla_01',
+          title: 'Enterprise Support SLA & Escalations',
+          content: 'Enterprise Tier-1 SLA guarantees response within 15 minutes for Critical severity incidents (P0). P0 incidents require immediate paging of the On-Call Engineering Lead and automatic RabbitMQ escalation broadcast to #ops-war-room. Standard billing dispute SLA is 24 business hours.'
+        },
+        {
+          id: 'doc_refund_02',
+          title: 'Refund & Credit Policy 2026',
+          content: 'Subscription refunds are approved for enterprise accounts if downtime exceeds 99.9% uptime commitments in any billing month. Automated credit dispatch is capped at $500; any refund exceeding $500 requires mandatory Human-in-the-Loop (HITL) gate authorization.'
+        },
+        {
+          id: 'doc_api_03',
+          title: 'RabbitMQ Broker Configuration & Security',
+          content: 'All AMQP publishers must attach valid JWT tokens in the message headers. Topic exchange amq.topic routes events to agent.tasks.inbound with mandatory ACK flag enabled. Unacknowledged messages re-queue with exponential backoff up to 5 retries before moving to DLQ (Dead Letter Queue).'
+        }
+      ]
+    }
+  },
 
   // --- LOGIC ---
   {
