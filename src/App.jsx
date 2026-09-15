@@ -9,6 +9,7 @@ import ApiSettingsModal from './components/ApiSettingsModal';
 import ChatPlayground from './components/ChatPlayground';
 import CodeExportModal from './components/CodeExportModal';
 import CloudDeployModal from './components/CloudDeployModal';
+import WorkflowDiffModal from './components/WorkflowDiffModal';
 import HitlApprovalModal from './components/HitlApprovalModal';
 import KnowledgeBaseModal from './components/KnowledgeBaseModal';
 import WorkflowVaultModal from './components/WorkflowVaultModal';
@@ -29,6 +30,7 @@ import {
   parseAndValidateWorkflowFile,
   saveDraftToStorage 
 } from './services/workflowStorage';
+import { getShareableLink, checkUrlForSharedWorkflow } from './utils/shareUrl';
 
 const STORAGE_KEY = 'autoflow_ai_workflow_v1';
 const API_KEYS_STORAGE_KEY = 'autoflow_ai_api_keys';
@@ -96,6 +98,11 @@ function AppContent() {
   const [codeExportOpen, setCodeExportOpen] = useState(false);
   const [cloudDeployOpen, setCloudDeployOpen] = useState(false);
   const [vaultOpen, setVaultOpen] = useState(false);
+  const [diffModalState, setDiffModalState] = useState({
+    isOpen: false,
+    incomingWorkflow: null,
+    title: 'Visual Workflow Comparison & Diff'
+  });
   const [vaultCount, setVaultCount] = useState(() => getVaultWorkflows().length);
   const [autoSaveStatus, setAutoSaveStatus] = useState('saved');
   const [toastMessage, setToastMessage] = useState(null);
@@ -448,6 +455,58 @@ function AppContent() {
     setTotalLatency('0ms');
     showToast(`Loaded "${wf.name}" to canvas`);
   };
+
+  // URL Sharing & Visual Diff Handlers
+  const handleShareLink = () => {
+    const link = getShareableLink({ name: workflowName, nodes, connections });
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(link)
+        .then(() => showToast('🔗 Shareable workflow link copied to clipboard!'))
+        .catch(() => {
+          window.prompt('Copy workflow share link:', link);
+        });
+    } else if (typeof window !== 'undefined') {
+      window.prompt('Copy workflow share link:', link);
+    }
+  };
+
+  const handleOpenDiff = (incoming) => {
+    const res = parseAndValidateWorkflowFile(incoming);
+    const wf = res.valid ? res.workflow : incoming;
+    setDiffModalState({
+      isOpen: true,
+      incomingWorkflow: wf,
+      title: `Review Changes: "${wf.name || 'Incoming Workflow'}"`
+    });
+  };
+
+  const handleApplyDiffWorkflow = (incoming) => {
+    pushHistory(nodes, connections);
+    setWorkflowName(incoming.name || workflowName);
+    setNodes(incoming.nodes || []);
+    setConnections(incoming.connections || []);
+    if (incoming.mockPayload) setMockPayload(incoming.mockPayload);
+    setSelectedNodeId(null);
+    setExecutionStates({});
+    setActiveWireIds([]);
+    setLogs([]);
+    setExecutionSnapshots([]);
+    setReplayStepIndex(null);
+    showToast(`✅ Applied "${incoming.name || 'workflow'}" to canvas`);
+  };
+
+  // Detect shared workflow in URL hash on mount
+  useEffect(() => {
+    const sharedWf = checkUrlForSharedWorkflow();
+    if (sharedWf) {
+      setDiffModalState({
+        isOpen: true,
+        incomingWorkflow: sharedWf,
+        title: `Shared Workflow Received: "${sharedWf.name}"`
+      });
+      showToast(`🔗 Shared workflow received: "${sharedWf.name}"`);
+    }
+  }, []);
 
   const handleClearCanvas = () => {
     if (window.confirm('Clear all nodes and connections on canvas?')) {
@@ -947,6 +1006,8 @@ function AppContent() {
         isChatOpen={isChatOpen}
         onOpenCodeExport={() => setCodeExportOpen(true)}
         onOpenCloudDeploy={() => setCloudDeployOpen(true)}
+        onShareLink={handleShareLink}
+        onOpenDiff={handleOpenDiff}
         onOpenVault={() => setVaultOpen(true)}
         onQuickSave={handleQuickSave}
         onOpenOnboarding={() => setOnboardingOpen(true)}
@@ -1068,6 +1129,16 @@ function AppContent() {
         workflowName={workflowName}
         nodes={nodes}
         connections={connections}
+      />
+
+      {/* Visual Workflow Diff & Version Comparison Modal */}
+      <WorkflowDiffModal 
+        isOpen={diffModalState.isOpen}
+        onClose={() => setDiffModalState({ isOpen: false, incomingWorkflow: null, title: '' })}
+        baseWorkflow={{ name: workflowName, nodes, connections }}
+        incomingWorkflow={diffModalState.incomingWorkflow}
+        onApplyChanges={handleApplyDiffWorkflow}
+        title={diffModalState.title}
       />
 
       {/* Human-in-the-Loop & Breakpoint Approval Modal */}

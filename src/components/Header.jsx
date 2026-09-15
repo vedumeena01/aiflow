@@ -19,7 +19,8 @@ import {
   Check,
   HelpCircle,
   MessageSquarePlus,
-  Rocket
+  Rocket,
+  Share2
 } from 'lucide-react';
 import { PREBUILT_TEMPLATES } from '../data/templates';
 
@@ -35,6 +36,8 @@ export default function Header({
   isChatOpen,
   onOpenCodeExport,
   onOpenCloudDeploy,
+  onShareLink,
+  onOpenDiff,
   onOpenVault,
   onQuickSave,
   onOpenOnboarding,
@@ -65,7 +68,11 @@ export default function Header({
     reader.onload = (event) => {
       try {
         const parsed = JSON.parse(event.target?.result);
-        onImportWorkflow(parsed);
+        if (onOpenDiff && nodeCount > 0) {
+          onOpenDiff(parsed);
+        } else {
+          onImportWorkflow(parsed);
+        }
       } catch (err) {
         alert('Invalid JSON file: ' + err.message);
       }
@@ -323,6 +330,17 @@ export default function Header({
         >
           <Rocket size={14} style={{ color: '#10b981' }} />
           <span>Deploy</span>
+        </button>
+
+        {/* URL SHARE LINK BUTTON */}
+        <button 
+          className="btn btn-ghost" 
+          onClick={onShareLink}
+          title="Share workflow with teammates via 0-backend URL link"
+          style={{ color: '#c084fc', borderColor: 'rgba(192, 132, 252, 0.4)' }}
+        >
+          <Share2 size={14} style={{ color: '#c084fc' }} />
+          <span>Share</span>
         </button>
 
         {/* API Keys Configuration Button */}

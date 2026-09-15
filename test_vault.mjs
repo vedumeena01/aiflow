@@ -274,6 +274,65 @@ assert(readme.includes('gcloud run deploy'), 'README includes Google Cloud Run d
 assert(readme.includes('fly launch'), 'README includes Fly.io launch guide');
 assert(readme.includes('aws ecr'), 'README includes AWS ECS / ECR push commands');
 
+// Test Suite 7: Visual Graph Diff Engine & URL Share System
+console.log('\n▶ Suite 7: Visual Graph Diff Engine & URL Sharing System');
+
+import { computeGraphDiff } from './src/utils/graphDiff.js';
+import { encodeWorkflowToShareUrl, decodeWorkflowFromShareUrl } from './src/utils/shareUrl.js';
+
+const baseGraph = {
+  name: 'Production Invoicing Pipeline v1',
+  nodes: [
+    { id: 'n1', type: 'trigger', title: 'Stripe Webhook', config: { endpoint: '/stripe' } },
+    { id: 'n2', type: 'agent', title: 'Invoice Auditor', config: { model: 'gpt-4o', temp: 0.2 } }
+  ],
+  connections: [
+    { id: 'c1', fromNodeId: 'n1', toNodeId: 'n2' }
+  ]
+};
+
+const updatedGraph = {
+  name: 'Production Invoicing Pipeline v2',
+  nodes: [
+    { id: 'n1', type: 'trigger', title: 'Stripe Webhook (Enhanced)', config: { endpoint: '/stripe/v2' } }, // modified
+    { id: 'n2', type: 'agent', title: 'Invoice Auditor', config: { model: 'gpt-4o', temp: 0.2 } },          // unchanged
+    { id: 'n3', type: 'output', title: 'Slack Dispatcher', config: { channel: '#finance' } }                // added
+  ],
+  connections: [
+    { id: 'c2', fromNodeId: 'n2', toNodeId: 'n3' } // c1 removed, c2 added
+  ]
+};
+
+const diffResult = computeGraphDiff(baseGraph, updatedGraph);
+
+assert(diffResult.hasChanges === true, 'Diff engine detects structural and metadata differences');
+assert(diffResult.nameChanged === true, 'Workflow name alteration tracked');
+assert(diffResult.summary.addedNodesCount === 1, 'Node additions accurately counted');
+assert(diffResult.addedNodes[0].id === 'n3', 'Added node ID correctly identified');
+assert(diffResult.summary.modifiedNodesCount === 1, 'Node modifications accurately counted');
+assert(diffResult.modifiedNodes[0].id === 'n1', 'Modified node ID correctly identified');
+assert(diffResult.modifiedNodes[0].changes.length === 2, 'Field-level diff records title and config changes');
+assert(diffResult.summary.unchangedNodesCount === 1, 'Unchanged node preserved without false positive diff');
+assert(diffResult.summary.addedWiresCount === 1, 'Wire addition accurately detected');
+assert(diffResult.summary.removedWiresCount === 1, 'Wire removal accurately detected');
+
+// Test Identical Graphs
+const identicalDiff = computeGraphDiff(baseGraph, baseGraph);
+assert(identicalDiff.hasChanges === false, 'Identical graphs yield 0 changes');
+assert(identicalDiff.summary.totalChanges === 0, 'Total changes score is 0 on identical graph');
+
+// Test URL Sharing Serialization & Hydration
+const shareToken = encodeWorkflowToShareUrl(updatedGraph);
+assert(typeof shareToken === 'string' && shareToken.length > 20, 'Workflow encodes to URL-safe token');
+assert(!shareToken.includes('+') && !shareToken.includes('/'), 'Token is sanitised for URL hash fragments');
+
+const hydrated = decodeWorkflowFromShareUrl(shareToken);
+assert(hydrated !== null, 'Encoded token hydrates back to workflow object');
+assert(hydrated.name === updatedGraph.name, 'Hydrated workflow preserves name');
+assert(hydrated.nodes.length === 3, 'Hydrated workflow preserves all 3 nodes');
+assert(hydrated.connections.length === 1, 'Hydrated workflow preserves wire connections');
+assert(hydrated.isShared === true, 'Hydrated workflow flagged as shared');
+
 console.log('\n------------------------------------------------------');
 console.log(`Results: ${passed} passed, ${failed} failed out of ${passed + failed} checks.`);
 console.log('------------------------------------------------------\n');
@@ -281,6 +340,7 @@ console.log('------------------------------------------------------\n');
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log('🎉 All AutoFlow AI verification suites (Vault, Sandbox, Feedback, Telemetry, Cloud Deploy) passed 100%!\n');
+  console.log('🎉 All AutoFlow AI verification suites (Vault, Sandbox, Feedback, Telemetry, Cloud Deploy, Diff & Share) passed 100%!\n');
 }
+
 
