@@ -8,6 +8,7 @@ import TestRunModal from './components/TestRunModal';
 import ApiSettingsModal from './components/ApiSettingsModal';
 import ChatPlayground from './components/ChatPlayground';
 import CodeExportModal from './components/CodeExportModal';
+import CloudDeployModal from './components/CloudDeployModal';
 import HitlApprovalModal from './components/HitlApprovalModal';
 import KnowledgeBaseModal from './components/KnowledgeBaseModal';
 import WorkflowVaultModal from './components/WorkflowVaultModal';
@@ -93,6 +94,7 @@ function AppContent() {
   const [apiSettingsOpen, setApiSettingsOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [codeExportOpen, setCodeExportOpen] = useState(false);
+  const [cloudDeployOpen, setCloudDeployOpen] = useState(false);
   const [vaultOpen, setVaultOpen] = useState(false);
   const [vaultCount, setVaultCount] = useState(() => getVaultWorkflows().length);
   const [autoSaveStatus, setAutoSaveStatus] = useState('saved');
@@ -944,6 +946,7 @@ function AppContent() {
         onOpenChatPlayground={() => setIsChatOpen(!isChatOpen)}
         isChatOpen={isChatOpen}
         onOpenCodeExport={() => setCodeExportOpen(true)}
+        onOpenCloudDeploy={() => setCloudDeployOpen(true)}
         onOpenVault={() => setVaultOpen(true)}
         onQuickSave={handleQuickSave}
         onOpenOnboarding={() => setOnboardingOpen(true)}
@@ -1053,6 +1056,15 @@ function AppContent() {
       <CodeExportModal 
         isOpen={codeExportOpen}
         onClose={() => setCodeExportOpen(false)}
+        workflowName={workflowName}
+        nodes={nodes}
+        connections={connections}
+      />
+
+      {/* 1-Click Docker & FastAPI Cloud Deployment Packager Modal */}
+      <CloudDeployModal 
+        isOpen={cloudDeployOpen}
+        onClose={() => setCloudDeployOpen(false)}
         workflowName={workflowName}
         nodes={nodes}
         connections={connections}

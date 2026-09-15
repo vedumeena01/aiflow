@@ -226,6 +226,54 @@ assert(summary.eventCounts['workflow_executed'] >= 1, 'Workflow execution event 
 markOnboardingCompleted();
 assert(hasCompletedOnboarding() === true, 'Onboarding completion flag set and verified');
 
+// Test Suite 6: 1-Click Docker & FastAPI Cloud Deployment Packager
+console.log('\n▶ Suite 6: 1-Click Docker & FastAPI Cloud Deployment Packager');
+
+import { generateCloudDeploymentPackage } from './src/services/cloudDeployService.js';
+
+const testWorkflowNodes = [
+  { id: 'trigger_1', type: 'trigger', title: 'Webhook Inbound Trigger', config: { event: 'ticket_opened' } },
+  { id: 'agent_1', type: 'agent', title: 'Classifier Agent', config: { model: 'claude-3-5-sonnet', systemPrompt: 'Classify ticket urgency.' } },
+  { id: 'output_1', type: 'output', title: 'Slack Notification', config: { channel: '#support-alerts' } }
+];
+
+const testWorkflowWires = [
+  { id: 'w1', fromNodeId: 'trigger_1', toNodeId: 'agent_1' },
+  { id: 'w2', fromNodeId: 'agent_1', toNodeId: 'output_1' }
+];
+
+const deployPkg = generateCloudDeploymentPackage('Enterprise Support Triage', testWorkflowNodes, testWorkflowWires);
+
+assert(deployPkg.packageName === 'enterprise-support-triage', 'Package name correctly slugified');
+assert(deployPkg.files && typeof deployPkg.files === 'object', 'Files manifest dictionary created');
+
+const expectedFiles = ['main.py', 'Dockerfile', 'requirements.txt', 'docker-compose.yml', '.env.example', 'README.md'];
+for (const file of expectedFiles) {
+  assert(Boolean(deployPkg.files[file]), `Manifest contains container artifact: ${file}`);
+}
+
+// Inspect main.py microservice code
+const mainPy = deployPkg.files['main.py'];
+assert(mainPy.includes('from fastapi import FastAPI, HTTPException'), 'FastAPI framework imported in main.py');
+assert(mainPy.includes('app.add_middleware'), 'CORS middleware configured in microservice');
+assert(mainPy.includes('@app.get("/health"'), 'Healthcheck probe endpoint /health exposed');
+assert(mainPy.includes('@app.post("/api/v1/run"'), 'Pipeline synchronous execution endpoint /api/v1/run exposed');
+assert(mainPy.includes('@app.post("/api/v1/webhook"'), 'Background queue async webhook endpoint /api/v1/webhook exposed');
+assert(mainPy.includes('app_graph = workflow.compile()'), 'Compiled LangGraph state graph initialized');
+
+// Inspect Dockerfile security & health standards
+const dockerfile = deployPkg.files['Dockerfile'];
+assert(dockerfile.includes('FROM python:3.11-slim'), 'Container standardizes on lightweight Python 3.11 base');
+assert(dockerfile.includes('useradd -m -u 1000 appuser'), 'Security best practice: non-root execution user created');
+assert(dockerfile.includes('HEALTHCHECK --interval=30s'), 'Container healthcheck instruction defined');
+assert(dockerfile.includes('uvicorn.workers.UvicornWorker') || dockerfile.includes('uvicorn'), 'High-performance ASGI server configured as entrypoint');
+
+// Inspect Cloud Deployment Documentation
+const readme = deployPkg.files['README.md'];
+assert(readme.includes('gcloud run deploy'), 'README includes Google Cloud Run deployment instructions');
+assert(readme.includes('fly launch'), 'README includes Fly.io launch guide');
+assert(readme.includes('aws ecr'), 'README includes AWS ECS / ECR push commands');
+
 console.log('\n------------------------------------------------------');
 console.log(`Results: ${passed} passed, ${failed} failed out of ${passed + failed} checks.`);
 console.log('------------------------------------------------------\n');
@@ -233,5 +281,6 @@ console.log('------------------------------------------------------\n');
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log('🎉 All AutoFlow AI verification suites (Vault, Sandbox, Feedback, Telemetry) passed 100%!\n');
+  console.log('🎉 All AutoFlow AI verification suites (Vault, Sandbox, Feedback, Telemetry, Cloud Deploy) passed 100%!\n');
 }
+

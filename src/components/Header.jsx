@@ -18,7 +18,8 @@ import {
   Save,
   Check,
   HelpCircle,
-  MessageSquarePlus
+  MessageSquarePlus,
+  Rocket
 } from 'lucide-react';
 import { PREBUILT_TEMPLATES } from '../data/templates';
 
@@ -33,6 +34,7 @@ export default function Header({
   onOpenChatPlayground,
   isChatOpen,
   onOpenCodeExport,
+  onOpenCloudDeploy,
   onOpenVault,
   onQuickSave,
   onOpenOnboarding,
@@ -302,6 +304,25 @@ export default function Header({
         >
           <Code2 size={14} />
           <span>Export Code</span>
+        </button>
+
+        {/* 1-CLICK CLOUD DEPLOY (DOCKER & FASTAPI) */}
+        <button 
+          className="btn" 
+          onClick={onOpenCloudDeploy}
+          title="1-Click Cloud Deploy: Dockerfile, FastAPI server, Docker Compose & Cloud Run/Fly/AWS configs"
+          style={{ 
+            color: '#10b981', 
+            background: 'rgba(16, 185, 129, 0.12)', 
+            borderColor: 'rgba(16, 185, 129, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            fontWeight: 600
+          }}
+        >
+          <Rocket size={14} style={{ color: '#10b981' }} />
+          <span>Deploy</span>
         </button>
 
         {/* API Keys Configuration Button */}
