@@ -24,7 +24,8 @@ export default function Canvas({
   onDuplicateNode,
   onToggleBreakpoint,
   onCreateConnection,
-  onDeleteConnection
+  onDeleteConnection,
+  onLoadSampleTemplate
 }) {
   const containerRef = useRef(null);
   
@@ -359,6 +360,63 @@ export default function Canvas({
             />
           </div>
         ))}
+
+        {/* Empty Canvas Quick Launcher Guide */}
+        {nodes.length === 0 && (
+          <div 
+            style={{
+              position: 'absolute',
+              left: 450,
+              top: 240,
+              transform: 'translate(-50%, -50%)',
+              background: 'rgba(13, 17, 23, 0.94)',
+              border: '1px dashed rgba(99, 102, 241, 0.45)',
+              borderRadius: 16,
+              padding: '32px 36px',
+              textAlign: 'center',
+              maxWidth: 460,
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(99, 102, 241, 0.12)',
+              pointerEvents: 'auto',
+              backdropFilter: 'blur(12px)'
+            }}
+          >
+            <div 
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 14,
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.2))',
+                border: '1px solid rgba(99, 102, 241, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto',
+                color: '#818cf8'
+              }}
+            >
+              <Layers size={26} />
+            </div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px 0', color: '#f8fafc' }}>
+              Your Visual Canvas is Empty
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', lineHeight: 1.5, margin: '0 0 20px 0' }}>
+              Drag nodes from the left palette onto the grid, or load a pre-configured enterprise workflow template below.
+            </p>
+            {onLoadSampleTemplate && (
+              <button
+                className="btn btn-primary"
+                onClick={onLoadSampleTemplate}
+                style={{
+                  padding: '9px 18px',
+                  fontSize: 13,
+                  margin: '0 auto'
+                }}
+              >
+                ✨ Load Ralph Autonomous Loop Template
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Floating Canvas Controls Toolbar */}

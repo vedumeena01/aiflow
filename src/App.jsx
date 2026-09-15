@@ -11,12 +11,16 @@ import CodeExportModal from './components/CodeExportModal';
 import HitlApprovalModal from './components/HitlApprovalModal';
 import KnowledgeBaseModal from './components/KnowledgeBaseModal';
 import WorkflowVaultModal from './components/WorkflowVaultModal';
+import OnboardingModal from './components/OnboardingModal';
+import FeedbackModal from './components/FeedbackModal';
+import ErrorBoundary from './components/ErrorBoundary';
 import { PREBUILT_TEMPLATES } from './data/templates';
 import { NODE_DEFINITIONS } from './data/nodeDefinitions';
 import { validateGraph, validateWorkflowSchema } from './utils/graphValidation';
 import { executeLiveAgentNode, verifyActionSafety } from './services/aiService';
 import { queryKnowledgeBase } from './services/ragService';
 import { executeSandboxCode } from './services/sandboxService';
+import { hasCompletedOnboarding, trackTelemetryEvent } from './services/feedbackService';
 import { 
   getVaultWorkflows, 
   saveWorkflowToVault, 
@@ -29,7 +33,7 @@ const STORAGE_KEY = 'autoflow_ai_workflow_v1';
 const API_KEYS_STORAGE_KEY = 'autoflow_ai_api_keys';
 const MAX_HISTORY = 25;
 
-export default function App() {
+function AppContent() {
   const defaultTemplate = PREBUILT_TEMPLATES[0];
 
   const [workflowName, setWorkflowName] = useState(() => {
@@ -93,6 +97,8 @@ export default function App() {
   const [vaultCount, setVaultCount] = useState(() => getVaultWorkflows().length);
   const [autoSaveStatus, setAutoSaveStatus] = useState('saved');
   const [toastMessage, setToastMessage] = useState(null);
+  const [onboardingOpen, setOnboardingOpen] = useState(() => !hasCompletedOnboarding());
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const showToast = useCallback((msg) => {
     setToastMessage(msg);
@@ -940,6 +946,8 @@ export default function App() {
         onOpenCodeExport={() => setCodeExportOpen(true)}
         onOpenVault={() => setVaultOpen(true)}
         onQuickSave={handleQuickSave}
+        onOpenOnboarding={() => setOnboardingOpen(true)}
+        onOpenFeedback={() => setFeedbackOpen(true)}
         savedCount={vaultCount}
         autoSaveStatus={autoSaveStatus}
         onRunWorkflow={handleRunWorkflow}
@@ -977,6 +985,7 @@ export default function App() {
           onToggleBreakpoint={handleToggleBreakpoint}
           onCreateConnection={handleCreateConnection}
           onDeleteConnection={handleDeleteConnection}
+          onLoadSampleTemplate={() => handleLoadTemplate(PREBUILT_TEMPLATES[0])}
         />
 
         {selectedNode && (
@@ -1019,7 +1028,7 @@ export default function App() {
         onRerunFromStep={handleRerunFromStep}
       />
 
-      {/* Test Run Payload Modal */}
+      {/* Live Webhook Inbound Tester & Mock Event Dispatcher */}
       <TestRunModal 
         isOpen={testModalOpen}
         onClose={() => setTestModalOpen(false)}
@@ -1029,6 +1038,7 @@ export default function App() {
           setMockPayload(p);
           handleRunWorkflow();
         }}
+        workflowName={workflowName}
       />
 
       {/* Live AI Key Settings Modal */}
@@ -1083,6 +1093,29 @@ export default function App() {
         onNotification={showToast}
       />
 
+      {/* Interactive Quickstart Onboarding Tour */}
+      <OnboardingModal 
+        isOpen={onboardingOpen}
+        onClose={() => setOnboardingOpen(false)}
+        onLoadSampleWorkflow={() => {
+          handleLoadTemplate(PREBUILT_TEMPLATES[0]);
+          showToast('Loaded Ralph Loop Sample Workflow!');
+        }}
+      />
+
+      {/* In-App Feedback & Telemetry Portal */}
+      <FeedbackModal 
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        currentDiagnostics={{
+          nodeCount: nodes.length,
+          connectionCount: connections.length,
+          executionMode,
+          workflowName
+        }}
+        onNotification={showToast}
+      />
+
       {/* Persistent Toast Notification Pill */}
       {toastMessage && (
         <div 
@@ -1118,5 +1151,13 @@ export default function App() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 }

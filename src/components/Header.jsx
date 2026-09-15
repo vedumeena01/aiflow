@@ -16,7 +16,9 @@ import {
   Code2,
   FolderKanban,
   Save,
-  Check
+  Check,
+  HelpCircle,
+  MessageSquarePlus
 } from 'lucide-react';
 import { PREBUILT_TEMPLATES } from '../data/templates';
 
@@ -33,6 +35,8 @@ export default function Header({
   onOpenCodeExport,
   onOpenVault,
   onQuickSave,
+  onOpenOnboarding,
+  onOpenFeedback,
   savedCount = 0,
   autoSaveStatus = 'saved', // 'saved' | 'unsaved'
   onRunWorkflow,
@@ -324,6 +328,28 @@ export default function Header({
             />
           )}
         </button>
+
+          {/* Quickstart Tour & Product Guide */}
+          <button 
+            className="btn btn-ghost" 
+            onClick={onOpenOnboarding}
+            title="Interactive Quickstart Guide & Architecture Tour"
+            style={{ color: '#818cf8', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+          >
+            <HelpCircle size={14} />
+            <span>Tour</span>
+          </button>
+
+          {/* In-App Feedback & Experience Portal */}
+          <button 
+            className="btn btn-ghost" 
+            onClick={onOpenFeedback}
+            title="Submit Feedback, Report a Bug, or Request Features"
+            style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.3)' }}
+          >
+            <MessageSquarePlus size={14} />
+            <span>Feedback</span>
+          </button>
 
         {/* Validation Warning Badge if issues exist */}
         {hasCycle && (

@@ -169,6 +169,63 @@ assert(pyCode.includes('[Code Sandbox] Executing payload transformation'), 'Pyth
 const tsCode = generateTypeScriptCode('Sandbox Test', [sandboxNode], []);
 assert(tsCode.includes('[Code Sandbox] Running custom transformation'), 'TypeScript generator produces code_sandbox node handler');
 
+// Test Suite 5: Product Feedback & Telemetry Services
+console.log('\n▶ Suite 5: In-App Feedback Portal & Telemetry Tracker');
+
+// Polyfills for headless CLI execution
+if (typeof globalThis.localStorage === 'undefined') {
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => store.get(k) || null,
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+    clear: () => store.clear()
+  };
+}
+if (typeof globalThis.window === 'undefined') {
+  globalThis.window = { innerWidth: 1920, innerHeight: 1080 };
+}
+if (typeof globalThis.navigator === 'undefined') {
+  globalThis.navigator = { userAgent: 'NodeTestRunner/AutoFlow-CLI' };
+}
+
+import { 
+  submitUserFeedback, 
+  getStoredFeedback, 
+  trackTelemetryEvent, 
+  getTelemetrySummary, 
+  hasCompletedOnboarding, 
+  markOnboardingCompleted 
+} from './src/services/feedbackService.js';
+
+// Test Feedback Submission
+const fbRecord = submitUserFeedback({
+  type: 'rating',
+  rating: 5,
+  title: 'Great Canvas Navigation',
+  description: 'Infinite canvas zoom and Bezier wire snapping is extremely smooth.',
+  diagnostics: { nodeCount: 5, connectionCount: 4 }
+});
+
+assert(fbRecord && fbRecord.id.startsWith('fb_'), 'Feedback record generated with unique ID');
+assert(fbRecord.rating === 5, 'Feedback rating saved accurately');
+assert(fbRecord.diagnostics.nodeCount === 5, 'Auto-captured diagnostic telemetry recorded');
+
+const storedList = getStoredFeedback();
+assert(storedList.length >= 1, 'Feedback persisted in local storage');
+
+// Test Telemetry Event Tracking
+trackTelemetryEvent('canvas_node_added', { type: 'code_sandbox' });
+trackTelemetryEvent('workflow_executed', { mode: 'simulated', duration: '1.2s' });
+
+const summary = getTelemetrySummary();
+assert(summary.totalEvents >= 2, 'Telemetry summary aggregates recorded events');
+assert(summary.eventCounts['workflow_executed'] >= 1, 'Workflow execution event properly categorized');
+
+// Test Onboarding Lifecycle
+markOnboardingCompleted();
+assert(hasCompletedOnboarding() === true, 'Onboarding completion flag set and verified');
+
 console.log('\n------------------------------------------------------');
 console.log(`Results: ${passed} passed, ${failed} failed out of ${passed + failed} checks.`);
 console.log('------------------------------------------------------\n');
@@ -176,5 +233,5 @@ console.log('------------------------------------------------------\n');
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log('🎉 All Workflow Vault, Sandbox & Schema tests passed with 100% success rate!\n');
+  console.log('🎉 All AutoFlow AI verification suites (Vault, Sandbox, Feedback, Telemetry) passed 100%!\n');
 }
