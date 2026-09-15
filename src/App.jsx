@@ -16,6 +16,7 @@ import { NODE_DEFINITIONS } from './data/nodeDefinitions';
 import { validateGraph, validateWorkflowSchema } from './utils/graphValidation';
 import { executeLiveAgentNode, verifyActionSafety } from './services/aiService';
 import { queryKnowledgeBase } from './services/ragService';
+import { executeSandboxCode } from './services/sandboxService';
 import { 
   getVaultWorkflows, 
   saveWorkflowToVault, 
@@ -721,6 +722,32 @@ export default function App() {
         nodeTokens = ragResult.matchCount * 65;
         await new Promise(r => setTimeout(r, 350));
       } 
+      // --- CUSTOM CODE SANDBOX EXECUTION ---
+      else if (currentNode.type === 'code_sandbox') {
+        const lang = currentNode.config?.language || 'javascript';
+        addLog(`⚡ Executing Code Sandbox script (${lang === 'python' ? 'Python / LangGraph Logic' : 'V8 JavaScript Sandbox'})...`, currentNode.title, 'running');
+        
+        const sandboxRes = await executeSandboxCode({
+          code: currentNode.config?.code || 'function transform(input) { return input; }',
+          inputData: currentInput,
+          timeoutMs: currentNode.config?.timeoutMs || 2500
+        });
+
+        if (sandboxRes.logs?.length > 0) {
+          sandboxRes.logs.forEach(l => addLog(l, currentNode.title, 'running'));
+        }
+
+        if (!sandboxRes.success) {
+          addLog(`❌ Sandbox Execution Error: ${sandboxRes.error}`, currentNode.title, 'error', { error: sandboxRes.error });
+          stepOutput = { error: sandboxRes.error, failed: true, input: currentInput };
+          setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'error' }));
+        } else {
+          stepOutput = sandboxRes.result;
+          addLog(`✅ Script transformation executed successfully in ${sandboxRes.latencyMs}ms.`, currentNode.title, 'success', stepOutput);
+        }
+
+        await new Promise(r => setTimeout(r, 200));
+      }
       // --- LIVE MODE EXECUTION ---
       else if (executionMode === 'live') {
         if (nodeDef?.category === 'trigger') {

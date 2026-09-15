@@ -111,6 +111,64 @@ assert(packageCheck.valid === true, '.autoflow.json package envelope unwraps and
 assert(packageCheck.sanitizedWorkflow.nodes.length === 3, 'Package graph nodes correctly parsed');
 assert(packageCheck.sanitizedWorkflow.name === 'Enterprise Customer Escalation Flow', 'Package metadata name preserved');
 
+// Test Suite 4: Custom Code Sandbox Engine & Presets
+console.log('\n▶ Suite 4: Code Sandbox Execution & Transformation Presets');
+
+import { executeSandboxCode, CODE_SANDBOX_PRESETS } from './src/services/sandboxService.js';
+import { generatePythonLangGraph, generateTypeScriptCode } from './src/utils/codeGenerator.js';
+
+const samplePayload = {
+  order_id: 'ord_9981',
+  amount_usd: 1200,
+  customer_email: 'finance@enterprise.com',
+  notes: 'Urgent downtime refund request for AWS outage incident'
+};
+
+// Test basic transform
+const basicTransform = `function transform(input) {
+  return { ...input, verified: true, tax_usd: input.amount_usd * 0.1 };
+}`;
+
+const basicRes = await executeSandboxCode({
+  code: basicTransform,
+  inputData: samplePayload
+});
+
+assert(basicRes.success === true, 'Basic JS transformation executes cleanly');
+assert(basicRes.result.verified === true && basicRes.result.tax_usd === 120, 'Mathematical calculation returns accurate output');
+
+// Test Presets
+for (const preset of CODE_SANDBOX_PRESETS) {
+  const pRes = await executeSandboxCode({
+    code: preset.code,
+    inputData: samplePayload
+  });
+  assert(pRes.success === true, `Sandbox Preset "${preset.name}" executes without errors`);
+}
+
+// Test Runtime Error Handling
+const brokenCode = `function transform(input) {
+  throw new Error("Simulated division by zero or parse failure");
+}`;
+const errRes = await executeSandboxCode({
+  code: brokenCode,
+  inputData: samplePayload
+});
+assert(errRes.success === false && errRes.error.includes('Simulated division'), 'Runtime errors trapped and returned gracefully');
+
+// Test Code Generator with code_sandbox node
+const sandboxNode = {
+  id: 'node_sbx_1',
+  type: 'code_sandbox',
+  title: 'Custom Data Sanitizer',
+  config: { language: 'javascript' }
+};
+const pyCode = generatePythonLangGraph('Sandbox Test', [sandboxNode], []);
+assert(pyCode.includes('[Code Sandbox] Executing payload transformation'), 'Python LangGraph generator produces code_sandbox node handler');
+
+const tsCode = generateTypeScriptCode('Sandbox Test', [sandboxNode], []);
+assert(tsCode.includes('[Code Sandbox] Running custom transformation'), 'TypeScript generator produces code_sandbox node handler');
+
 console.log('\n------------------------------------------------------');
 console.log(`Results: ${passed} passed, ${failed} failed out of ${passed + failed} checks.`);
 console.log('------------------------------------------------------\n');
@@ -118,5 +176,5 @@ console.log('------------------------------------------------------\n');
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log('🎉 All Workflow Vault & Schema tests passed with 100% success rate!\n');
+  console.log('🎉 All Workflow Vault, Sandbox & Schema tests passed with 100% success rate!\n');
 }

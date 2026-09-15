@@ -28,7 +28,8 @@ import {
   Target,
   Radio,
   ShieldCheck,
-  CircleDot
+  CircleDot,
+  Code2
 } from 'lucide-react';
 import { NODE_CATEGORIES, NODE_DEFINITIONS } from '../data/nodeDefinitions';
 
@@ -54,7 +55,8 @@ const ICON_MAP = {
   Repeat,
   Target,
   Radio,
-  ShieldCheck
+  ShieldCheck,
+  Code2
 };
 
 export default function NodeCard({

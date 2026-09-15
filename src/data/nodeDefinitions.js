@@ -293,6 +293,32 @@ export const NODE_DEFINITIONS = [
       notificationChannel: '#ops-approvals'
     }
   },
+  {
+    type: 'code_sandbox',
+    category: 'logic',
+    name: 'Code Sandbox (JS / Python)',
+    description: 'Executes custom data transformation scripts, payload calculations, or JSON sanitization',
+    icon: 'Code2',
+    inputs: ['input_payload'],
+    outputs: ['transformed_output', 'error'],
+    defaultConfig: {
+      language: 'javascript',
+      entryFunction: 'transform',
+      timeoutMs: 2500,
+      code: `function transform(input) {
+  // Custom Data Transformation Sandbox
+  // "input" contains incoming payload from upstream nodes
+  const payload = typeof input === 'object' && input !== null ? input : { raw: input };
+  
+  return {
+    ...payload,
+    processed_at: new Date().toISOString(),
+    status: 'transformed',
+    summary_len: (payload.message || payload.raw_text || '').length
+  };
+}`
+    }
+  },
 
   // --- ACTIONS ---
   {

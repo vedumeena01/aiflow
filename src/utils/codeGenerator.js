@@ -74,6 +74,17 @@ def ${fnName}(state: AgentState) -> Dict[str, Any]:
         "intermediate_steps": [{"node": "${node.title}", "retrieval_status": "success", "k": ${node.config?.topK || 3}}]
     }
 `;
+    } else if (node.type === 'code_sandbox') {
+      code += `    # Custom Code Sandbox Execution (${node.config?.language || 'javascript'})
+    print("⚡ [Code Sandbox] Executing payload transformation...")
+    transformed_payload = dict(current_input) if isinstance(current_input, dict) else {"raw": current_input}
+    transformed_payload["transformed"] = True
+    transformed_payload["sandbox_node"] = "${node.title}"
+    return {
+        "final_output": transformed_payload,
+        "intermediate_steps": [{"node": "${node.title}", "output": transformed_payload, "status": "success"}]
+    }
+`;
     } else if (node.type.includes('ralph')) {
       code += `    # Ralph Autonomous Loop (Self-Evaluation Gate)
     print("Evaluating output against criteria: ${node.config?.evaluationCriteria || 'Quality & SLA'}")
@@ -250,6 +261,25 @@ async function ${fnName}(ctx: AgentContext): Promise<any> {
     title: "${node.title}",
     status: "success",
     retrievedCount: retrievedChunks.length,
+    timestamp: new Date().toISOString()
+  };
+}
+`;
+    } else if (node.type === 'code_sandbox') {
+      code += `
+async function ${fnName}(ctx: AgentContext): Promise<any> {
+  console.log('⚡ [Code Sandbox] Running custom transformation for "${node.title}"');
+  const input = ctx.payload;
+  const transformed = typeof input === 'object' && input !== null 
+    ? { ...input, transformed: true, processedAt: new Date().toISOString() }
+    : { raw: input, transformed: true };
+  
+  ctx.payload = transformed;
+  return {
+    nodeId: "${node.id}",
+    title: "${node.title}",
+    status: "success",
+    output: transformed,
     timestamp: new Date().toISOString()
   };
 }

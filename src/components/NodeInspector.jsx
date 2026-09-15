@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   X, 
   Sliders, 
@@ -7,11 +7,16 @@ import {
   Cpu, 
   Code2, 
   Copy, 
-  ExternalLink,
-  Info,
-  Database
+  ExternalLink, 
+  Info, 
+  Database,
+  Play,
+  Terminal,
+  Check,
+  AlertTriangle
 } from 'lucide-react';
 import { NODE_CATEGORIES, NODE_DEFINITIONS, AI_MODELS } from '../data/nodeDefinitions';
+import { CODE_SANDBOX_PRESETS, executeSandboxCode } from '../services/sandboxService';
 
 export default function NodeInspector({
   selectedNode,
@@ -23,6 +28,9 @@ export default function NodeInspector({
   onDeleteNode
 }) {
   if (!selectedNode) return null;
+
+  const [testResult, setTestResult] = useState(null);
+  const [isTesting, setIsTesting] = useState(false);
 
   const nodeDef = NODE_DEFINITIONS.find(d => d.type === selectedNode.type) || {
     name: selectedNode.title,
@@ -419,6 +427,174 @@ export default function NodeInspector({
                 onChange={(e) => handleConfigChange('notificationChannel', e.target.value)}
               />
             </div>
+          </>
+        )}
+
+        {/* CODE SANDBOX FIELDS */}
+        {selectedNode.type === 'code_sandbox' && (
+          <>
+            <div className="form-group">
+              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Pre-bundled Preset</span>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>1-Click Insert</span>
+              </label>
+              <select
+                className="form-select"
+                defaultValue=""
+                onChange={(e) => {
+                  const preset = CODE_SANDBOX_PRESETS.find(p => p.id === e.target.value);
+                  if (preset) {
+                    handleConfigChange('code', preset.code);
+                    e.target.value = "";
+                  }
+                }}
+              >
+                <option value="" disabled>Load Transformation Preset...</option>
+                {CODE_SANDBOX_PRESETS.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="form-group">
+                <label className="form-label">Runtime Engine</label>
+                <select
+                  className="form-select"
+                  value={config.language || 'javascript'}
+                  onChange={(e) => handleConfigChange('language', e.target.value)}
+                >
+                  <option value="javascript">JavaScript (V8 In-Browser)</option>
+                  <option value="python">Python (LangGraph Node)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Timeout (ms)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  min="500"
+                  max="10000"
+                  step="500"
+                  value={config.timeoutMs || 2500}
+                  onChange={(e) => handleConfigChange('timeoutMs', parseInt(e.target.value) || 2500)}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label className="form-label" style={{ margin: 0 }}>Script Code</label>
+                <span style={{ fontSize: 10, color: '#a5b4fc', fontFamily: 'monospace' }}>function transform(input, context)</span>
+              </div>
+              <textarea
+                rows={11}
+                className="form-input"
+                style={{
+                  fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  background: '#090d16',
+                  borderColor: 'rgba(99, 102, 241, 0.4)',
+                  color: '#e2e8f0',
+                  tabSize: 2,
+                  whiteSpace: 'pre',
+                  overflowX: 'auto'
+                }}
+                value={config.code || ''}
+                onChange={(e) => handleConfigChange('code', e.target.value)}
+                placeholder="// function transform(input) { return input; }"
+                spellCheck="false"
+              />
+            </div>
+
+            {/* Test Run Action */}
+            <div className="form-group">
+              <button
+                type="button"
+                disabled={isTesting}
+                onClick={async () => {
+                  setIsTesting(true);
+                  setTestResult(null);
+                  const sampleInput = {
+                    event: 'test_event',
+                    user: 'sarah@techcorp.io',
+                    message: 'Payment of $499 failed due to timeout. Please escalate urgently.',
+                    timestamp: new Date().toISOString()
+                  };
+                  const res = await executeSandboxCode({
+                    code: config.code || '',
+                    inputData: sampleInput,
+                    timeoutMs: config.timeoutMs || 2500
+                  });
+                  setTestResult(res);
+                  setIsTesting(false);
+                }}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.2) 100%)',
+                  border: '1px solid #10b981',
+                  color: '#ffffff',
+                  padding: '9px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 0 15px rgba(16, 185, 129, 0.25)'
+                }}
+              >
+                <Play size={13} fill="white" />
+                <span>{isTesting ? 'Executing Sandbox...' : 'Test Run Script on Sample Payload'}</span>
+              </button>
+            </div>
+
+            {/* Test Output Panel */}
+            {testResult && (
+              <div
+                style={{
+                  background: '#06090e',
+                  border: `1px solid ${testResult.success ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)'}`,
+                  borderRadius: 8,
+                  padding: 12,
+                  marginTop: 8,
+                  fontSize: 11
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {testResult.success ? (
+                      <span style={{ color: '#34d399', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Check size={13} /> SCRIPT PASSED
+                      </span>
+                    ) : (
+                      <span style={{ color: '#f87171', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <AlertTriangle size={13} /> EXECUTION FAILED
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ color: 'var(--text-muted)' }}>⏱ {testResult.latencyMs}ms</span>
+                </div>
+
+                {testResult.logs?.length > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ color: '#94a3b8', fontSize: 10, fontWeight: 600, marginBottom: 2 }}>Console Logs:</div>
+                    <pre style={{ margin: 0, padding: 6, background: 'rgba(0,0,0,0.5)', borderRadius: 4, color: '#a5b4fc', fontSize: 10 }}>
+                      {testResult.logs.join('\n')}
+                    </pre>
+                  </div>
+                )}
+
+                <div style={{ color: '#94a3b8', fontSize: 10, fontWeight: 600, marginBottom: 2 }}>Returned Output:</div>
+                <pre style={{ margin: 0, padding: 6, background: 'rgba(0,0,0,0.5)', borderRadius: 4, color: '#f1f5f9', fontSize: 10, maxHeight: 150, overflowY: 'auto' }}>
+                  {JSON.stringify(testResult.result, null, 2)}
+                </pre>
+              </div>
+            )}
           </>
         )}
 
