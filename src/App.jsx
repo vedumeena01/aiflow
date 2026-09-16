@@ -15,6 +15,7 @@ import KnowledgeBaseModal from './components/KnowledgeBaseModal';
 import WorkflowVaultModal from './components/WorkflowVaultModal';
 import OnboardingModal from './components/OnboardingModal';
 import FeedbackModal from './components/FeedbackModal';
+import StepDebuggerToolbar from './components/StepDebuggerToolbar';
 import ErrorBoundary from './components/ErrorBoundary';
 import { PREBUILT_TEMPLATES } from './data/templates';
 import { NODE_DEFINITIONS } from './data/nodeDefinitions';
@@ -32,6 +33,7 @@ import {
 } from './services/workflowStorage';
 import { getShareableLink, checkUrlForSharedWorkflow } from './utils/shareUrl';
 import { applyAutoLayout } from './utils/autoLayout';
+import { analyzePipelineMetrics } from './utils/telemetryProfiler';
 
 const STORAGE_KEY = 'autoflow_ai_workflow_v1';
 const API_KEYS_STORAGE_KEY = 'autoflow_ai_api_keys';
@@ -109,6 +111,10 @@ function AppContent() {
   const [toastMessage, setToastMessage] = useState(null);
   const [onboardingOpen, setOnboardingOpen] = useState(() => !hasCompletedOnboarding());
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [nodeMetrics, setNodeMetrics] = useState({});
+  const [debugStepInfo, setDebugStepInfo] = useState(null);
+  const debugStepResolveRef = useRef(null);
+  const debugStepModeRef = useRef(false);
 
   const showToast = useCallback((msg) => {
     setToastMessage(msg);
@@ -537,6 +543,12 @@ function AppContent() {
 
   const handleStopWorkflow = () => {
     simulationAbortRef.current = true;
+    if (debugStepResolveRef.current) {
+      debugStepResolveRef.current({ action: 'stop' });
+      debugStepResolveRef.current = null;
+    }
+    setDebugStepInfo(null);
+    debugStepModeRef.current = false;
     setIsRunning(false);
     setActiveWireIds([]);
   };
@@ -552,11 +564,16 @@ function AppContent() {
   };
 
   const handleRunWorkflow = async () => {
-    await executePipelineInternal(mockPayload);
+    await executePipelineInternal(mockPayload, 0, false);
+  };
+
+  const handleStartDebugStep = async () => {
+    showToast('🐞 Step-by-Step Debugger initiated (Press F10 to Step)');
+    await executePipelineInternal(mockPayload, 0, true);
   };
 
   // Core Pipeline Execution Function
-  const executePipelineInternal = async (payloadToRun, startStepIndex = 0) => {
+  const executePipelineInternal = async (payloadToRun, startStepIndex = 0, isStepDebug = false) => {
     if (nodes.length === 0) return { responseText: 'No nodes in canvas' };
 
     if (!validationResult.isValid) {
@@ -572,12 +589,14 @@ function AppContent() {
 
     setIsRunning(true);
     simulationAbortRef.current = false;
+    debugStepModeRef.current = Boolean(isStepDebug);
     setExecutionStates({});
     setActiveWireIds([]);
 
     if (startStepIndex === 0) {
       setLogs([]);
       setExecutionSnapshots([]);
+      setNodeMetrics({});
       setReplayStepIndex(null);
     } else {
       setLogs(prev => prev.slice(0, startStepIndex));
@@ -650,6 +669,7 @@ function AppContent() {
 
       const currentNode = executionQueue[i];
       const nodeDef = NODE_DEFINITIONS.find(d => d.type === currentNode.type);
+      const nodeStepStartTime = Date.now();
 
       // Fast-forward upstream nodes when re-running from step
       if (i < startStepIndex) {
@@ -926,7 +946,9 @@ function AppContent() {
       setTotalTokens(accumulatedTokens.toLocaleString());
       setExecutionStates(prev => ({ ...prev, [currentNode.id]: 'success' }));
 
-      // Record Time-Travel Replay Snapshot
+      const stepDurationMs = Date.now() - nodeStepStartTime;
+
+      // Record Time-Travel Replay Snapshot & Update Node Metrics
       setExecutionSnapshots(prev => {
         const next = [...prev];
         next[i] = {
@@ -941,11 +963,48 @@ function AppContent() {
           tokens: nodeTokens,
           timestamp: new Date().toLocaleTimeString(),
           elapsedMs: Date.now() - startTime,
+          stepDurationMs,
           wireIds: wireIds
         };
+        const prof = analyzePipelineMetrics(next);
+        setNodeMetrics(prof.nodeMetrics);
         return next;
       });
+
+      // --- STEP-BY-STEP DEBUGGER PAUSE INTERCEPTION ---
+      if (debugStepModeRef.current && i + 1 < executionQueue.length && !simulationAbortRef.current) {
+        const nextNodeToRun = executionQueue[i + 1];
+        setDebugStepInfo({
+          isActive: true,
+          currentStepIndex: i + 1,
+          totalSteps: executionQueue.length,
+          currentNode: nextNodeToRun
+        });
+        setExecutionStates(prev => ({ ...prev, [nextNodeToRun.id]: 'running' }));
+        addLog(
+          `⏸️ Debugger Paused at Step ${i + 2}/${executionQueue.length}. Ready to execute [${nextNodeToRun.title || nextNodeToRun.type}].`,
+          'Debugger',
+          'running'
+        );
+
+        const stepDecision = await new Promise(resolve => {
+          debugStepResolveRef.current = resolve;
+        });
+
+        if (stepDecision?.action === 'resume') {
+          debugStepModeRef.current = false;
+          setDebugStepInfo(null);
+          addLog(`▶️ Resumed full continuous pipeline execution.`, 'Debugger', 'running');
+        } else if (stepDecision?.action === 'stop') {
+          simulationAbortRef.current = true;
+          setDebugStepInfo(null);
+          break;
+        }
+      }
     }
+
+    setDebugStepInfo(null);
+    debugStepModeRef.current = false;
 
     const elapsed = Date.now() - startTime;
     const durationFormatted = `${(elapsed / 1000).toFixed(2)}s`;
@@ -1028,6 +1087,7 @@ function AppContent() {
         savedCount={vaultCount}
         autoSaveStatus={autoSaveStatus}
         onRunWorkflow={handleRunWorkflow}
+        onStartDebugStep={handleStartDebugStep}
         onStopWorkflow={handleStopWorkflow}
         onOpenTestModal={() => setTestModalOpen(true)}
         onLoadTemplate={handleLoadTemplate}
@@ -1064,6 +1124,7 @@ function AppContent() {
           onDeleteConnection={handleDeleteConnection}
           onLoadSampleTemplate={() => handleLoadTemplate(PREBUILT_TEMPLATES[0])}
           onAutoLayout={handleAutoLayout}
+          nodeMetrics={nodeMetrics}
         />
 
         {selectedNode && (
@@ -1088,6 +1149,17 @@ function AppContent() {
           isProcessing={isRunning}
         />
       </div>
+
+      {/* Floating Step-by-Step Debugger Controls Toolbar */}
+      <StepDebuggerToolbar 
+        isActive={Boolean(debugStepInfo?.isActive)}
+        currentStepIndex={debugStepInfo?.currentStepIndex || 0}
+        totalSteps={debugStepInfo?.totalSteps || 0}
+        currentNode={debugStepInfo?.currentNode}
+        onStepNext={() => debugStepResolveRef.current?.({ action: 'step' })}
+        onResumeAll={() => debugStepResolveRef.current?.({ action: 'resume' })}
+        onStop={handleStopWorkflow}
+      />
 
       <ExecutionConsole 
         logs={logs}

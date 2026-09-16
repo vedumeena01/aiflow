@@ -20,7 +20,8 @@ import {
   HelpCircle,
   MessageSquarePlus,
   Rocket,
-  Share2
+  Share2,
+  Bug
 } from 'lucide-react';
 import { PREBUILT_TEMPLATES } from '../data/templates';
 
@@ -45,6 +46,7 @@ export default function Header({
   savedCount = 0,
   autoSaveStatus = 'saved', // 'saved' | 'unsaved'
   onRunWorkflow,
+  onStartDebugStep,
   onStopWorkflow,
   onOpenTestModal,
   onLoadTemplate,
@@ -458,6 +460,27 @@ export default function Header({
         >
           <Trash2 size={14} />
         </button>
+
+        {/* Step-by-Step Debugger CTA */}
+        {!isRunning && (
+          <button
+            className="btn btn-ghost"
+            onClick={onStartDebugStep}
+            disabled={nodeCount === 0 || hasCycle}
+            title="Step-through pipeline execution node-by-node"
+            style={{
+              color: '#f59e0b',
+              borderColor: 'rgba(245, 158, 11, 0.4)',
+              background: 'rgba(245, 158, 11, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5
+            }}
+          >
+            <Bug size={14} style={{ color: '#fbbf24' }} />
+            <span>Step Debug</span>
+          </button>
+        )}
 
         {/* Run Workflow CTA */}
         {isRunning ? (

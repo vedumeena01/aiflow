@@ -69,7 +69,8 @@ export default function NodeCard({
   onDuplicate,
   onToggleBreakpoint,
   onStartConnection,
-  onPortMouseUp
+  onPortMouseUp,
+  metrics = null
 }) {
   const nodeDef = NODE_DEFINITIONS.find(d => d.type === node.type) || {
     name: node.title,
@@ -273,7 +274,7 @@ export default function NodeCard({
         </div>
       </div>
 
-      <div className="node-status-bar">
+      <div className="node-status-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
         <div className={`status-badge-indicator ${executionStatus || 'idle'}`}>
           {isCycleNode ? (
             <span style={{ color: '#f87171', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -294,6 +295,29 @@ export default function NodeCard({
             <span>Ready</span>
           )}
         </div>
+
+        {/* Performance Telemetry Overlay */}
+        {metrics && (
+          <div 
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              fontSize: 10,
+              padding: '1px 6px',
+              borderRadius: 4,
+              background: metrics.isBottleneck ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+              border: metrics.isBottleneck ? '1px solid rgba(245, 158, 11, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+              color: metrics.isBottleneck ? '#fbbf24' : '#cbd5e1'
+            }}
+            title={metrics.isBottleneck ? `Slowest pipeline step: ${metrics.latencyMs}ms (Bottleneck)` : `Step execution latency: ${metrics.latencyMs}ms`}
+          >
+            <span>⏱ {metrics.latencyMs}ms</span>
+            {metrics.tokens > 0 && <span>• 🪙 {metrics.tokens}</span>}
+            {metrics.isBottleneck && <span style={{ fontWeight: 700, color: '#f59e0b' }}>⚡ Max</span>}
+          </div>
+        )}
+
         <span style={{ fontFamily: 'var(--font-mono)' }}>id: {node.id.slice(-4)}</span>
       </div>
     </div>

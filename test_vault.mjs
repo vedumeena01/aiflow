@@ -402,6 +402,50 @@ const cyclicWires = [
 const arrangedCyclic = applyAutoLayout(cyclicNodes, cyclicWires);
 assert(arrangedCyclic.length === 3, 'Layout engine gracefully resolves cyclic graph without infinite loop');
 
+// Test Suite 9: Production Node Telemetry Profiler & Stepper Engine
+console.log('\n▶ Suite 9: Node Telemetry Profiler & Pipeline Stepper Controller');
+
+import { analyzePipelineMetrics, PipelineStepController } from './src/utils/telemetryProfiler.js';
+
+// 1. Profiler empty snapshots fallback
+const emptyProfile = analyzePipelineMetrics([]);
+assert(emptyProfile.totalLatencyMs === 0, 'Empty snapshots returns 0ms total latency');
+assert(emptyProfile.bottleneckNodeId === null, 'Empty snapshots returns null bottleneck ID');
+
+// 2. Profiler multi-step bottleneck identification & token aggregation
+const mockSnapshots = [
+  { nodeId: 'node_webhook', nodeTitle: 'Webhook Trigger', stepDurationMs: 45, tokens: 0, status: 'success' },
+  { nodeId: 'node_claude_agent', nodeTitle: 'Claude 3.5 Sonnet Worker', stepDurationMs: 1450, tokens: 920, status: 'success' },
+  { nodeId: 'node_slack_out', nodeTitle: 'Slack Notification', stepDurationMs: 30, tokens: 0, status: 'success' }
+];
+
+const profilerReport = analyzePipelineMetrics(mockSnapshots);
+assert(profilerReport.totalLatencyMs === 1525, 'Pipeline total latency computed accurately (1525ms)');
+assert(profilerReport.totalTokens === 920, 'Pipeline total token usage aggregated accurately (920)');
+assert(profilerReport.bottleneckNodeId === 'node_claude_agent', 'Slowest pipeline step (Bottleneck) correctly isolated');
+assert(profilerReport.bottleneckDurationMs === 1450, 'Bottleneck step latency recorded precisely');
+assert(profilerReport.nodeMetrics['node_claude_agent'].isBottleneck === true, 'Bottleneck flag set on slowest node');
+assert(profilerReport.nodeMetrics['node_webhook'].isBottleneck === false, 'Non-bottleneck node correctly flagged');
+
+// 3. Step-Through Debugger Controller State Machine
+const stepper = new PipelineStepController(3);
+assert(stepper.currentStep === 0 && stepper.isPaused === false, 'Stepper initializes in ready state at Step 0');
+
+// Trigger pause and stepNext
+const stepPromise = stepper.waitForStep();
+assert(stepper.isPaused === true, 'Stepper pauses execution and waits for operator input');
+
+stepper.stepNext();
+const stepRes = await stepPromise;
+assert(stepRes.action === 'step', 'Stepper yields step action on operator F10');
+assert(stepper.currentStep === 1 && stepper.isPaused === false, 'Stepper advances to Step 1 and unpauses');
+
+// Trigger pause and resumeAll
+const resumePromise = stepper.waitForStep();
+stepper.resumeAll();
+const resumeRes = await resumePromise;
+assert(resumeRes.action === 'resume', 'Stepper yields resume action on operator F5');
+
 console.log('\n------------------------------------------------------');
 console.log(`Results: ${passed} passed, ${failed} failed out of ${passed + failed} checks.`);
 console.log('------------------------------------------------------\n');
@@ -409,8 +453,9 @@ console.log('------------------------------------------------------\n');
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log('🎉 All AutoFlow AI verification suites (Vault, Sandbox, Feedback, Telemetry, Cloud Deploy, Diff & Share, Auto-Layout) passed 100%!\n');
+  console.log('🎉 All AutoFlow AI verification suites (Vault, Sandbox, Feedback, Telemetry, Cloud Deploy, Diff & Share, Auto-Layout, Debugger) passed 100%!\n');
 }
+
 
 
 

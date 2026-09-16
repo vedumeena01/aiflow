@@ -28,7 +28,8 @@ export default function Canvas({
   onCreateConnection,
   onDeleteConnection,
   onLoadSampleTemplate,
-  onAutoLayout
+  onAutoLayout,
+  nodeMetrics = {}
 }) {
   const containerRef = useRef(null);
   
@@ -360,6 +361,7 @@ export default function Canvas({
               onToggleBreakpoint={onToggleBreakpoint}
               onStartConnection={handleStartConnection}
               onPortMouseUp={handlePortMouseUp}
+              metrics={nodeMetrics[node.id] || null}
             />
           </div>
         ))}
