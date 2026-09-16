@@ -31,6 +31,7 @@ import {
   saveDraftToStorage 
 } from './services/workflowStorage';
 import { getShareableLink, checkUrlForSharedWorkflow } from './utils/shareUrl';
+import { applyAutoLayout } from './utils/autoLayout';
 
 const STORAGE_KEY = 'autoflow_ai_workflow_v1';
 const API_KEYS_STORAGE_KEY = 'autoflow_ai_api_keys';
@@ -493,6 +494,18 @@ function AppContent() {
     setExecutionSnapshots([]);
     setReplayStepIndex(null);
     showToast(`✅ Applied "${incoming.name || 'workflow'}" to canvas`);
+  };
+
+  // 1-Click Sugiyama DAG Auto-Layout Handler
+  const handleAutoLayout = () => {
+    if (nodes.length <= 1) {
+      showToast('Need at least 2 nodes to auto-arrange layout');
+      return;
+    }
+    pushHistory(nodes, connections);
+    const arrangedNodes = applyAutoLayout(nodes, connections);
+    setNodes(arrangedNodes);
+    showToast('✨ Pipeline graph auto-arranged cleanly!');
   };
 
   // Detect shared workflow in URL hash on mount
@@ -1050,6 +1063,7 @@ function AppContent() {
           onCreateConnection={handleCreateConnection}
           onDeleteConnection={handleDeleteConnection}
           onLoadSampleTemplate={() => handleLoadTemplate(PREBUILT_TEMPLATES[0])}
+          onAutoLayout={handleAutoLayout}
         />
 
         {selectedNode && (

@@ -5,9 +5,11 @@ import {
   Maximize2, 
   RotateCcw, 
   Layers,
-  AlertTriangle
+  AlertTriangle,
+  LayoutGrid
 } from 'lucide-react';
 import NodeCard from './NodeCard';
+import Minimap from './Minimap';
 import { NODE_DEFINITIONS } from '../data/nodeDefinitions';
 
 export default function Canvas({
@@ -25,7 +27,8 @@ export default function Canvas({
   onToggleBreakpoint,
   onCreateConnection,
   onDeleteConnection,
-  onLoadSampleTemplate
+  onLoadSampleTemplate,
+  onAutoLayout
 }) {
   const containerRef = useRef(null);
   
@@ -450,7 +453,24 @@ export default function Canvas({
         >
           <Maximize2 size={14} />
         </button>
+        <button 
+          className="control-btn" 
+          onClick={onAutoLayout} 
+          title="Auto-Arrange Pipeline (Sugiyama DAG Layout)"
+          style={{ color: '#818cf8', borderLeft: '1px solid var(--border-subtle)' }}
+        >
+          <LayoutGrid size={15} />
+        </button>
       </div>
+
+      {/* High-Density Interactive Graph Minimap */}
+      <Minimap 
+        nodes={nodes}
+        connections={connections}
+        transform={transform}
+        containerRect={containerRef.current?.getBoundingClientRect()}
+        onPanTo={(x, y) => setTransform(prev => ({ ...prev, x, y }))}
+      />
     </div>
   );
 }

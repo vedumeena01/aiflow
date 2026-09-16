@@ -333,6 +333,75 @@ assert(hydrated.nodes.length === 3, 'Hydrated workflow preserves all 3 nodes');
 assert(hydrated.connections.length === 1, 'Hydrated workflow preserves wire connections');
 assert(hydrated.isShared === true, 'Hydrated workflow flagged as shared');
 
+// Test Suite 8: Sugiyama Hierarchical DAG Auto-Layout Engine
+console.log('\n▶ Suite 8: Sugiyama Hierarchical DAG Auto-Layout Engine');
+
+import { applyAutoLayout } from './src/utils/autoLayout.js';
+
+// 1. Edge cases: Empty and single node
+assert(applyAutoLayout([]).length === 0, 'Auto-layout returns empty array for empty graph');
+const singleResult = applyAutoLayout([{ id: 'n1', title: 'Solo Node' }]);
+assert(singleResult.length === 1 && typeof singleResult[0].x === 'number', 'Auto-layout handles single node gracefully');
+
+// 2. 3-stage linear pipeline: Trigger -> Agent -> Output
+const linearNodes = [
+  { id: 't1', type: 'trigger', title: 'Start', x: 500, y: 300 },
+  { id: 'a1', type: 'agent', title: 'Process', x: 100, y: 800 },
+  { id: 'o1', type: 'output', title: 'Finish', x: 200, y: 100 }
+];
+const linearWires = [
+  { id: 'w1', fromNodeId: 't1', toNodeId: 'a1' },
+  { id: 'w2', fromNodeId: 'a1', toNodeId: 'o1' }
+];
+
+const arrangedLinear = applyAutoLayout(linearNodes, linearWires);
+const t1Pos = arrangedLinear.find(n => n.id === 't1');
+const a1Pos = arrangedLinear.find(n => n.id === 'a1');
+const o1Pos = arrangedLinear.find(n => n.id === 'o1');
+
+assert(t1Pos.x < a1Pos.x, 'Trigger node positioned in earliest topological column (Layer 0)');
+assert(a1Pos.x < o1Pos.x, 'Agent node positioned in intermediate column (Layer 1)');
+assert(arrangedLinear.length === 3, 'All nodes preserved during auto-arrangement');
+
+// 3. Diamond/Branching DAG (1 Root -> 2 Workers -> 1 Aggregator)
+const diamondNodes = [
+  { id: 'root', type: 'trigger', title: 'Webhook' },
+  { id: 'w1', type: 'agent', title: 'Worker Alpha' },
+  { id: 'w2', type: 'agent', title: 'Worker Beta' },
+  { id: 'agg', type: 'output', title: 'Collector' }
+];
+const diamondWires = [
+  { fromNodeId: 'root', toNodeId: 'w1' },
+  { fromNodeId: 'root', toNodeId: 'w2' },
+  { fromNodeId: 'w1', toNodeId: 'agg' },
+  { fromNodeId: 'w2', toNodeId: 'agg' }
+];
+
+const arrangedDiamond = applyAutoLayout(diamondNodes, diamondWires);
+const rootArr = arrangedDiamond.find(n => n.id === 'root');
+const w1Arr = arrangedDiamond.find(n => n.id === 'w1');
+const w2Arr = arrangedDiamond.find(n => n.id === 'w2');
+const aggArr = arrangedDiamond.find(n => n.id === 'agg');
+
+assert(w1Arr.x === w2Arr.x, 'Parallel workers aligned to the same layer column');
+assert(w1Arr.y !== w2Arr.y, 'Parallel workers vertically spaced to prevent node collision');
+assert(aggArr.x > w1Arr.x, 'Aggregator positioned after parallel worker layer');
+
+// 4. Resilience to cycles
+const cyclicNodes = [
+  { id: 'c1', type: 'trigger', title: 'Loop Trigger' },
+  { id: 'c2', type: 'agent', title: 'Loop Worker' },
+  { id: 'c3', type: 'agent', title: 'Evaluator' }
+];
+const cyclicWires = [
+  { fromNodeId: 'c1', toNodeId: 'c2' },
+  { fromNodeId: 'c2', toNodeId: 'c3' },
+  { fromNodeId: 'c3', toNodeId: 'c2' } // Cycle feedback
+];
+
+const arrangedCyclic = applyAutoLayout(cyclicNodes, cyclicWires);
+assert(arrangedCyclic.length === 3, 'Layout engine gracefully resolves cyclic graph without infinite loop');
+
 console.log('\n------------------------------------------------------');
 console.log(`Results: ${passed} passed, ${failed} failed out of ${passed + failed} checks.`);
 console.log('------------------------------------------------------\n');
@@ -340,7 +409,8 @@ console.log('------------------------------------------------------\n');
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log('🎉 All AutoFlow AI verification suites (Vault, Sandbox, Feedback, Telemetry, Cloud Deploy, Diff & Share) passed 100%!\n');
+  console.log('🎉 All AutoFlow AI verification suites (Vault, Sandbox, Feedback, Telemetry, Cloud Deploy, Diff & Share, Auto-Layout) passed 100%!\n');
 }
+
 
 
