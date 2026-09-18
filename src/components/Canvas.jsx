@@ -6,7 +6,8 @@ import {
   RotateCcw, 
   Layers,
   AlertTriangle,
-  LayoutGrid
+  LayoutGrid,
+  Filter
 } from 'lucide-react';
 import NodeCard from './NodeCard';
 import Minimap from './Minimap';
@@ -29,7 +30,10 @@ export default function Canvas({
   onDeleteConnection,
   onLoadSampleTemplate,
   onAutoLayout,
-  nodeMetrics = {}
+  nodeMetrics = {},
+  focusNodeId = null,
+  activeCategoryFilter = 'all',
+  onSelectCategoryFilter = null
 }) {
   const containerRef = useRef(null);
   
@@ -85,6 +89,23 @@ export default function Canvas({
 
     setTransform({ x: Math.round(x), y: Math.round(y), zoom: Number(zoom.toFixed(2)) });
   };
+
+  // Center camera over focusNodeId when triggered via Spotlight Search
+  useEffect(() => {
+    if (!focusNodeId) return;
+    const targetNode = nodes.find(n => n.id === focusNodeId);
+    if (!targetNode || !containerRef.current) return;
+
+    const container = containerRef.current.getBoundingClientRect();
+    const targetX = container.width / 2 - (targetNode.x + 140) * transform.zoom;
+    const targetY = container.height / 2 - (targetNode.y + 80) * transform.zoom;
+
+    setTransform(prev => ({
+      ...prev,
+      x: Math.round(targetX),
+      y: Math.round(targetY)
+    }));
+  }, [focusNodeId, nodes]);
 
   // Wheel zoom
   const handleWheel = (e) => {
@@ -345,26 +366,40 @@ export default function Canvas({
         </svg>
 
         {/* Nodes */}
-        {nodes.map(node => (
-          <div 
-            key={node.id}
-            onMouseDown={(e) => handleNodeMouseDown(node, e)}
-          >
-            <NodeCard 
-              node={node}
-              isSelected={selectedNodeId === node.id}
-              executionStatus={executionStates[node.id] || 'idle'}
-              isCycleNode={cycleSet.has(node.id)}
-              onSelect={onSelectNode}
-              onDelete={onDeleteNode}
-              onDuplicate={onDuplicateNode}
-              onToggleBreakpoint={onToggleBreakpoint}
-              onStartConnection={handleStartConnection}
-              onPortMouseUp={handlePortMouseUp}
-              metrics={nodeMetrics[node.id] || null}
-            />
-          </div>
-        ))}
+        {nodes.map(node => {
+          const nodeDef = NODE_DEFINITIONS.find(d => d.type === node.type);
+          const isDimmed = activeCategoryFilter !== 'all' && (
+            activeCategoryFilter === 'cycle'
+              ? !cycleSet.has(node.id)
+              : nodeDef?.category !== activeCategoryFilter
+          );
+
+          return (
+            <div 
+              key={node.id}
+              onMouseDown={(e) => handleNodeMouseDown(node, e)}
+              style={{
+                opacity: isDimmed ? 0.25 : 1,
+                transition: 'opacity 0.2s ease',
+                pointerEvents: isDimmed ? 'none' : 'auto'
+              }}
+            >
+              <NodeCard 
+                node={node}
+                isSelected={selectedNodeId === node.id}
+                executionStatus={executionStates[node.id] || 'idle'}
+                isCycleNode={cycleSet.has(node.id)}
+                onSelect={onSelectNode}
+                onDelete={onDeleteNode}
+                onDuplicate={onDuplicateNode}
+                onToggleBreakpoint={onToggleBreakpoint}
+                onStartConnection={handleStartConnection}
+                onPortMouseUp={handlePortMouseUp}
+                metrics={nodeMetrics[node.id] || null}
+              />
+            </div>
+          );
+        })}
 
         {/* Empty Canvas Quick Launcher Guide */}
         {nodes.length === 0 && (
@@ -423,6 +458,54 @@ export default function Canvas({
           </div>
         )}
       </div>
+
+      {/* Category Filter Pills Overlay */}
+      {nodes.length > 0 && onSelectCategoryFilter && (
+        <div 
+          style={{
+            position: 'absolute',
+            top: 18,
+            left: 18,
+            zIndex: 30,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: 8,
+            padding: 3,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+          }}
+        >
+          <Filter size={12} style={{ color: 'var(--text-secondary)', marginLeft: 6, marginRight: 2 }} />
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'trigger', label: 'Triggers' },
+            { id: 'agent', label: 'Agents' },
+            { id: 'logic', label: 'Logic' },
+            { id: 'action', label: 'Actions' }
+          ].map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => onSelectCategoryFilter(cat.id)}
+              style={{
+                background: activeCategoryFilter === cat.id ? 'rgba(99, 102, 241, 0.3)' : 'transparent',
+                color: activeCategoryFilter === cat.id ? '#ffffff' : 'var(--text-secondary)',
+                border: activeCategoryFilter === cat.id ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid transparent',
+                borderRadius: 6,
+                padding: '3px 8px',
+                fontSize: 11,
+                cursor: 'pointer',
+                fontWeight: activeCategoryFilter === cat.id ? 700 : 500,
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Floating Canvas Controls Toolbar */}
       <div className="canvas-controls">

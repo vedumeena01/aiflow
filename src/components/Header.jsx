@@ -21,7 +21,8 @@ import {
   MessageSquarePlus,
   Rocket,
   Share2,
-  Bug
+  Bug,
+  Search
 } from 'lucide-react';
 import { PREBUILT_TEMPLATES } from '../data/templates';
 
@@ -37,6 +38,7 @@ export default function Header({
   isChatOpen,
   onOpenCodeExport,
   onOpenCloudDeploy,
+  onOpenSpotlight,
   onShareLink,
   onOpenDiff,
   onOpenVault,
@@ -278,6 +280,29 @@ export default function Header({
                 <span>Save</span>
               </>
             )}
+          </button>
+
+          {/* Quick Spotlight Search Trigger */}
+          <button
+            className="btn btn-ghost"
+            onClick={onOpenSpotlight}
+            title="Open Spotlight Palette: Quick Jump, Add Nodes, Run Commands (Ctrl+K)"
+            style={{
+              padding: '6px 10px',
+              fontSize: 11,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              color: '#c7d2fe',
+              background: 'rgba(99, 102, 241, 0.08)',
+              borderColor: 'rgba(99, 102, 241, 0.3)'
+            }}
+          >
+            <Search size={12} style={{ color: '#818cf8' }} />
+            <span>Search</span>
+            <kbd style={{ fontSize: 9, background: 'rgba(255,255,255,0.08)', padding: '1px 4px', borderRadius: 3, color: '#94a3b8' }}>
+              Ctrl+K
+            </kbd>
           </button>
         </div>
       </div>

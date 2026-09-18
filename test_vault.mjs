@@ -446,6 +446,45 @@ stepper.resumeAll();
 const resumeRes = await resumePromise;
 assert(resumeRes.action === 'resume', 'Stepper yields resume action on operator F5');
 
+// Test Suite 10: Canvas Spotlight Search & Category Filter Engine
+console.log('\n▶ Suite 10: Canvas Spotlight Search & Category Filter Engine');
+
+import { searchSpotlight, filterNodesByCategory } from './src/utils/spotlightSearch.js';
+
+const spotlightTestNodes = [
+  { id: 'node_pay_1', type: 'webhook_trigger', title: 'Stripe Payment Inbound', config: { route: '/webhook/stripe' } },
+  { id: 'node_ai_2', type: 'llm_prompt', title: 'Dispute Settlement Agent', config: { model: 'claude-3-5-sonnet', prompt: 'Analyze chargeback' } },
+  { id: 'node_out_3', type: 'slack_output', title: 'Slack Finance Channel', config: { channel: '#finance-ops' } }
+];
+
+// 1. Search by Node Title
+const titleSearchResults = searchSpotlight({ query: 'Dispute', nodes: spotlightTestNodes });
+assert(titleSearchResults.length > 0, 'Spotlight finds results matching title query');
+assert(titleSearchResults[0].id === 'node_ai_2', 'Top result matches targeted node ID');
+assert(titleSearchResults[0].itemType === 'node', 'Result itemType is correctly classified as canvas node');
+
+// 2. Search by Deep Configuration Parameter (model name)
+const configSearchResults = searchSpotlight({ query: 'sonnet', nodes: spotlightTestNodes });
+assert(configSearchResults.some(r => r.id === 'node_ai_2'), 'Deep config parameter matching successfully finds node');
+
+// 3. Search Application Commands
+const cmdSearchResults = searchSpotlight({ query: 'deploy', nodes: spotlightTestNodes });
+assert(cmdSearchResults.some(r => r.itemType === 'action' && r.id === 'action_deploy'), 'Command palette query isolates Cloud Deploy action');
+
+// 4. Search Palette Catalog for Quick-Add
+const paletteSearchResults = searchSpotlight({ query: 'code', nodes: spotlightTestNodes });
+assert(paletteSearchResults.some(r => r.itemType === 'palette' && r.id.includes('code')), 'Palette catalog search isolates Code Sandbox component');
+
+// 5. Category Filtering
+const triggersOnly = filterNodesByCategory(spotlightTestNodes, 'trigger');
+assert(triggersOnly.length === 1 && triggersOnly[0].id === 'node_pay_1', 'Category filter isolates trigger nodes');
+
+const agentsOnly = filterNodesByCategory(spotlightTestNodes, 'agent');
+assert(agentsOnly.length === 1 && agentsOnly[0].id === 'node_ai_2', 'Category filter isolates agent nodes');
+
+const allFilter = filterNodesByCategory(spotlightTestNodes, 'all');
+assert(allFilter.length === 3, 'Category filter "all" preserves full graph nodes');
+
 console.log('\n------------------------------------------------------');
 console.log(`Results: ${passed} passed, ${failed} failed out of ${passed + failed} checks.`);
 console.log('------------------------------------------------------\n');
@@ -453,8 +492,9 @@ console.log('------------------------------------------------------\n');
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log('🎉 All AutoFlow AI verification suites (Vault, Sandbox, Feedback, Telemetry, Cloud Deploy, Diff & Share, Auto-Layout, Debugger) passed 100%!\n');
+  console.log('🎉 All AutoFlow AI verification suites (Vault, Sandbox, Feedback, Telemetry, Cloud Deploy, Diff & Share, Auto-Layout, Debugger, Spotlight) passed 100%!\n');
 }
+
 
 
 

@@ -16,6 +16,7 @@ import WorkflowVaultModal from './components/WorkflowVaultModal';
 import OnboardingModal from './components/OnboardingModal';
 import FeedbackModal from './components/FeedbackModal';
 import StepDebuggerToolbar from './components/StepDebuggerToolbar';
+import SpotlightModal from './components/SpotlightModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import { PREBUILT_TEMPLATES } from './data/templates';
 import { NODE_DEFINITIONS } from './data/nodeDefinitions';
@@ -113,6 +114,9 @@ function AppContent() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [nodeMetrics, setNodeMetrics] = useState({});
   const [debugStepInfo, setDebugStepInfo] = useState(null);
+  const [spotlightOpen, setSpotlightOpen] = useState(false);
+  const [focusNodeId, setFocusNodeId] = useState(null);
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const debugStepResolveRef = useRef(null);
   const debugStepModeRef = useRef(false);
 
@@ -538,6 +542,43 @@ function AppContent() {
       setLogs([]);
       setExecutionSnapshots([]);
       setReplayStepIndex(null);
+    }
+  };
+
+  // Global Keyboard Shortcut Listener (Ctrl+K / Cmd+K) for Spotlight Search
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSpotlightOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  const handleSpotlightSelectNode = (nodeId) => {
+    setSelectedNodeId(nodeId);
+    setFocusNodeId(nodeId);
+    setTimeout(() => setFocusNodeId(null), 600);
+  };
+
+  const handleSpotlightAddPaletteNode = (nodeDef) => {
+    handleAddNode(nodeDef);
+    showToast(`✨ Added "${nodeDef.name}" to canvas`);
+  };
+
+  const handleSpotlightRunAction = (actionId) => {
+    switch (actionId) {
+      case 'action_run': handleRunWorkflow(); break;
+      case 'action_step_debug': handleStartDebugStep(); break;
+      case 'action_auto_layout': handleAutoLayout(); break;
+      case 'action_share': handleShareLink(); break;
+      case 'action_deploy': setCloudDeployOpen(true); break;
+      case 'action_export_json': handleExportWorkflow(); break;
+      case 'action_vault': setVaultOpen(true); break;
+      case 'action_clear': handleClearCanvas(); break;
+      default: break;
     }
   };
 
@@ -1078,6 +1119,7 @@ function AppContent() {
         isChatOpen={isChatOpen}
         onOpenCodeExport={() => setCodeExportOpen(true)}
         onOpenCloudDeploy={() => setCloudDeployOpen(true)}
+        onOpenSpotlight={() => setSpotlightOpen(true)}
         onShareLink={handleShareLink}
         onOpenDiff={handleOpenDiff}
         onOpenVault={() => setVaultOpen(true)}
@@ -1125,6 +1167,9 @@ function AppContent() {
           onLoadSampleTemplate={() => handleLoadTemplate(PREBUILT_TEMPLATES[0])}
           onAutoLayout={handleAutoLayout}
           nodeMetrics={nodeMetrics}
+          focusNodeId={focusNodeId}
+          activeCategoryFilter={categoryFilter}
+          onSelectCategoryFilter={setCategoryFilter}
         />
 
         {selectedNode && (
@@ -1283,6 +1328,16 @@ function AppContent() {
           workflowName
         }}
         onNotification={showToast}
+      />
+
+      {/* Global Canvas Spotlight Search & Command Palette (Ctrl+K) */}
+      <SpotlightModal 
+        isOpen={spotlightOpen}
+        onClose={() => setSpotlightOpen(false)}
+        nodes={nodes}
+        onSelectNode={handleSpotlightSelectNode}
+        onAddPaletteNode={handleSpotlightAddPaletteNode}
+        onRunAction={handleSpotlightRunAction}
       />
 
       {/* Persistent Toast Notification Pill */}
